@@ -61,15 +61,13 @@ export default function GlobeScene() {
 
   return (
     <>
-      {/* Front-key + blue sky fill so the camera-facing hemisphere reads as a
-          bright blue Earth (rather than the real-time night side). */}
-      <ambientLight intensity={0.35} />
-      <hemisphereLight args={['#8bb4e8', '#0a1424', 0.6]} />
-      <directionalLight
-        ref={lightRef}
-        position={[3, 2, 4.5]}
-        intensity={2.6}
-      />
+      {/* Front-key + fill + blue sky so the whole camera-facing hemisphere reads
+          as a bright blue Earth at every stop (never the real-time night side).
+          Ambient is high enough that even the limb can't fall to black. */}
+      <ambientLight intensity={0.6} />
+      <hemisphereLight args={['#9cc2f0', '#12203a', 0.7]} />
+      <directionalLight ref={lightRef} position={[3, 2, 5]} intensity={2.6} />
+      <directionalLight position={[-4, 1, 3]} intensity={0.9} color="#bcd6ff" />
       <Stars
         radius={90}
         depth={50}
