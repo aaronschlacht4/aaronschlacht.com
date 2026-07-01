@@ -1,93 +1,47 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { useTexture } from '@react-three/drei';
-import { useThree } from '@react-three/fiber';
-import {
-  type Mesh,
-  type WebGLProgramParametersWithUniforms,
-  SRGBColorSpace,
-  MeshStandardMaterial,
-} from 'three';
+import { useMemo } from 'react';
+import { useGLTF } from '@react-three/drei';
+import { Box3, Vector3, type Object3D, type Mesh } from 'three';
 import { GLOBE_RADIUS } from '../lib/geo';
-import { worldSunDirection } from '../lib/sun';
+
+const MODEL_URL = '/models/earth.glb';
 
 /**
- * The Earth surface: a PBR sphere (Blue Marble color + normal relief + ocean
- * roughness mask) patched with a shader injection that blends NASA night-lights
- * onto whatever hemisphere faces away from the (real-time) sun. The sun uniform
- * shares a reference with `worldSunDirection`, which GlobeScene updates each
- * frame from the actual UTC sub-solar point.
+ * Spin the model about its polar axis so the baked continents line up with the
+ * lat/lng pin convention (lng=0 / lat=0 → +Z). The glb ships its own surface,
+ * cloud, and atmosphere spheres, so GlobeScene no longer adds separate layers.
+ * Tune this if the journey routes drift off their countries.
+ */
+const MODEL_SPIN = Math.PI; // radians about +Y
+
+/**
+ * The Earth: the `earth.glb` Sketchfab model (surface + clouds + atmosphere),
+ * auto-centred and scaled so its solid surface sphere matches GLOBE_RADIUS — the
+ * same radius the journey pins and arcs are built against, so they stay glued to
+ * the ground rather than floating over the atmosphere shell.
  */
 export default function Earth() {
-  const meshRef = useRef<Mesh>(null);
-  const maxAniso = useThree((s) => s.gl.capabilities.getMaxAnisotropy());
+  const { scene } = useGLTF(MODEL_URL);
+  const model = useMemo(() => scene.clone(true), [scene]);
 
-  const [colorMap, normalMap, nightMap, specMap] = useTexture([
-    '/textures/earth_color.webp',
-    '/textures/earth_normal.webp',
-    '/textures/earth_night.webp',
-    '/textures/earth_specular.webp',
-  ]);
-
-  // Crisp textures at grazing angles.
-  useEffect(() => {
-    for (const t of [colorMap, normalMap, nightMap, specMap]) {
-      t.anisotropy = maxAniso;
-      t.needsUpdate = true;
-    }
-    colorMap.colorSpace = SRGBColorSpace;
-    nightMap.colorSpace = SRGBColorSpace;
-  }, [colorMap, normalMap, nightMap, specMap, maxAniso]);
-
-  const material = useMemo(() => {
-    const mat = new MeshStandardMaterial({
-      map: colorMap,
-      normalMap,
-      roughnessMap: specMap,
-      roughness: 1,
-      metalness: 0,
+  // Scale/centre on the *surface* sphere (pSphere1), not the whole model — the
+  // outer atmosphere shell is larger and would otherwise shrink the globe.
+  const { scale, offset } = useMemo(() => {
+    let target: Object3D = model;
+    model.traverse((o) => {
+      if ((o as Mesh).isMesh && o.name.includes('pSphere1')) target = o;
     });
-
-    mat.onBeforeCompile = (shader: WebGLProgramParametersWithUniforms) => {
-      // Share the live world-sun reference so updates need no re-compile.
-      shader.uniforms.uSunDirection = { value: worldSunDirection };
-      shader.uniforms.uNightMap = { value: nightMap };
-      shader.uniforms.uNightIntensity = { value: 1.2 };
-
-      shader.vertexShader = shader.vertexShader
-        .replace(
-          '#include <common>',
-          '#include <common>\nvarying vec3 vWorldNormal;',
-        )
-        .replace(
-          '#include <beginnormal_vertex>',
-          '#include <beginnormal_vertex>\n  vWorldNormal = mat3(modelMatrix) * objectNormal;',
-        );
-
-      shader.fragmentShader = shader.fragmentShader
-        .replace(
-          '#include <common>',
-          `#include <common>
-           uniform vec3 uSunDirection;
-           uniform sampler2D uNightMap;
-           uniform float uNightIntensity;
-           varying vec3 vWorldNormal;`,
-        )
-        .replace(
-          '#include <emissivemap_fragment>',
-          `#include <emissivemap_fragment>
-           float sunDot = dot(normalize(vWorldNormal), normalize(uSunDirection));
-           float nightMix = smoothstep(0.15, -0.25, sunDot);
-           vec3 cityLights = texture2D(uNightMap, vMapUv).rgb;
-           totalEmissiveRadiance += cityLights * nightMix * uNightIntensity;`,
-        );
-    };
-
-    return mat;
-  }, [colorMap, normalMap, nightMap, specMap]);
+    const box = new Box3().setFromObject(target);
+    const size = box.getSize(new Vector3());
+    const center = box.getCenter(new Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    return { scale: (GLOBE_RADIUS * 2) / maxDim, offset: center };
+  }, [model]);
 
   return (
-    <mesh ref={meshRef} material={material}>
-      <sphereGeometry args={[GLOBE_RADIUS, 128, 128]} />
-    </mesh>
+    <group rotation={[0, MODEL_SPIN, 0]} scale={scale}>
+      <primitive object={model} position={[-offset.x, -offset.y, -offset.z]} />
+    </group>
   );
 }
+
+useGLTF.preload(MODEL_URL);

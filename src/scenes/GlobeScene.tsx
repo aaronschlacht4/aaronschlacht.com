@@ -10,8 +10,6 @@ import {
   type DirectionalLight,
 } from 'three';
 import Earth from './Earth';
-import Clouds from './Clouds';
-import Atmosphere from './Atmosphere';
 import JourneyArcs from './JourneyArcs';
 import { JOURNEY } from '../data/journey';
 import { useScene, pathPosition } from '../state/useScene';
@@ -97,9 +95,7 @@ export default function GlobeScene() {
 
       <group ref={groupRef}>
         <Earth />
-        <Clouds />
         <JourneyArcs />
-        <Atmosphere />
       </group>
 
       {bloom && (
