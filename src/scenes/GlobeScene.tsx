@@ -10,6 +10,7 @@ import {
   type DirectionalLight,
 } from 'three';
 import Earth from './Earth';
+import Atmosphere from './Atmosphere';
 import JourneyArcs from './JourneyArcs';
 import { JOURNEY } from '../data/journey';
 import { useScene, pathPosition } from '../state/useScene';
@@ -98,14 +99,19 @@ export default function GlobeScene() {
         <JourneyArcs />
       </group>
 
+      {/* Beautiful blue glow: a tight bright rim plus a soft wide halo. Outside
+          the rotating group so it stays centred on the camera-facing limb. */}
+      <Atmosphere color="#5fb2ff" scale={1.14} intensity={1.15} power={3.2} />
+      <Atmosphere color="#8fd0ff" scale={1.45} intensity={0.45} power={2.0} />
+
       {bloom && (
         <EffectComposer>
           <Bloom
-            intensity={0.55}
-            luminanceThreshold={0.62}
-            luminanceSmoothing={0.28}
+            intensity={0.75}
+            luminanceThreshold={0.5}
+            luminanceSmoothing={0.3}
             mipmapBlur
-            radius={0.55}
+            radius={0.62}
           />
         </EffectComposer>
       )}

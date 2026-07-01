@@ -65,9 +65,10 @@ function SectionFrame({
       id={id}
       className="relative flex min-h-screen items-center justify-center px-5 py-24 sm:px-8"
       style={{
+        // Translucent so the fixed starfield carries through the whole page.
         background: tinted
-          ? 'radial-gradient(120% 90% at 50% 0%, #0a1424 0%, #05070d 65%)'
-          : 'var(--color-space-deep)',
+          ? 'radial-gradient(120% 90% at 50% 0%, rgba(10,20,36,0.82) 0%, rgba(5,7,13,0.9) 65%)'
+          : 'rgba(2,3,10,0.82)',
       }}
     >
       <motion.div

@@ -10,18 +10,24 @@ import { GLOBE_RADIUS } from '../lib/geo';
 export default function Atmosphere({
   color = '#5fb2ff',
   scale = 1.18,
+  intensity = 1.0,
+  power = 3.0,
 }: {
   color?: string;
   scale?: number;
+  intensity?: number;
+  power?: number;
 }) {
   const material = useMemo(() => {
     return new ShaderMaterial({
       transparent: true,
       side: BackSide,
       depthWrite: false,
+      toneMapped: false,
       uniforms: {
         uColor: { value: new Color(color) },
-        uIntensity: { value: 1.0 },
+        uIntensity: { value: intensity },
+        uPower: { value: power },
       },
       vertexShader: /* glsl */ `
         varying vec3 vNormal;
@@ -38,15 +44,16 @@ export default function Atmosphere({
         varying vec3 vViewDir;
         uniform vec3 uColor;
         uniform float uIntensity;
+        uniform float uPower;
         void main() {
           // strongest at the limb (normal perpendicular to view), fading inward
           float fres = 1.0 - abs(dot(vNormal, vViewDir));
-          float glow = pow(fres, 3.0) * uIntensity;
+          float glow = pow(fres, uPower) * uIntensity;
           gl_FragColor = vec4(uColor, glow);
         }
       `,
     });
-  }, [color]);
+  }, [color, intensity, power]);
 
   return (
     <mesh material={material} scale={scale}>

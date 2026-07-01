@@ -2,6 +2,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 
 import GlobeScene from './scenes/GlobeScene';
+import Starfield from './components/Starfield';
 import CursorTrail from './components/CursorTrail';
 import JourneyOverlay from './components/JourneyOverlay';
 import Sections from './components/Sections';
@@ -13,7 +14,8 @@ import { clamp01 } from './lib/geo';
 import { DPR_RANGE, isLowMemory, isSmallScreen } from './lib/env';
 
 // Scroll distance (in vh) given to the globe journey before the sections begin.
-const JOURNEY_VH = (JOURNEY.length + 1) * 95;
+// Kept short so the arcs scrub past quickly rather than dragging on.
+const JOURNEY_VH = (JOURNEY.length + 1) * 42;
 
 export default function App() {
   const setScroll = useScene((s) => s.setScroll);
@@ -66,7 +68,11 @@ export default function App() {
     <>
       <CursorTrail />
 
-      {/* Fixed globe behind everything; fades out into the sections. */}
+      {/* Full-page starfield behind everything (persists through the sections). */}
+      <Starfield />
+
+      {/* Fixed globe behind everything; fades out into the sections. Its canvas
+          is transparent so the starfield shows around and behind the globe. */}
       <div
         className="fixed inset-0 z-0"
         style={{ opacity: globeOpacity, pointerEvents: 'none' }}
@@ -75,8 +81,8 @@ export default function App() {
         <Canvas
           dpr={DPR_RANGE}
           camera={{ position: [0, 0.35, 3.0], fov: 42, near: 0.1, far: 100 }}
-          gl={{ antialias: true, powerPreference: 'high-performance' }}
-          onCreated={({ gl }) => gl.setClearColor('#02030a', 1)}
+          gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+          onCreated={({ gl }) => gl.setClearColor('#02030a', 0)}
         >
           <Suspense fallback={null}>
             <GlobeScene />
