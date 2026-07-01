@@ -3,22 +3,15 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { isLowMemory } from '../lib/env';
-import {
-  Group,
-  Vector3,
-  Quaternion,
-  type DirectionalLight,
-} from 'three';
+import { Group, Quaternion, type DirectionalLight } from 'three';
 import Earth from './Earth';
 import Atmosphere from './Atmosphere';
 import JourneyArcs from './JourneyArcs';
 import { JOURNEY } from '../data/journey';
 import { useScene, pathPosition } from '../state/useScene';
 import { latLngToVector3, easeInOut } from '../lib/geo';
-import { localSunDirection, worldSunDirection, updateSunDirection } from '../lib/sun';
 
 const tmpQuat = new Quaternion();
-const tmpVec = new Vector3();
 
 /**
  * The globe. Its orientation is driven entirely by scroll: each life stop has a
@@ -49,9 +42,7 @@ export default function GlobeScene() {
     });
   }, [targetDir]);
 
-  const sunClock = useRef(0);
-
-  useFrame((_, delta) => {
+  useFrame(() => {
     const group = groupRef.current;
     if (!group) return;
 
@@ -66,24 +57,19 @@ export default function GlobeScene() {
       group.quaternion.copy(tmpQuat);
     }
 
-    // 2) Real-time sun. Recompute the sub-solar point ~1x/sec; rotate it into
-    //    world space by the globe's current orientation every frame.
-    sunClock.current += delta;
-    if (sunClock.current > 1 || worldSunDirection.lengthSq() < 0.5) {
-      sunClock.current = 0;
-      updateSunDirection(new Date());
-    }
-    worldSunDirection.copy(localSunDirection).applyQuaternion(group.quaternion);
-    if (lightRef.current) {
-      tmpVec.copy(worldSunDirection).multiplyScalar(5);
-      lightRef.current.position.copy(tmpVec);
-    }
   });
 
   return (
     <>
-      <ambientLight intensity={0.16} />
-      <directionalLight ref={lightRef} position={[5, 2, 4]} intensity={2.2} />
+      {/* Front-key + blue sky fill so the camera-facing hemisphere reads as a
+          bright blue Earth (rather than the real-time night side). */}
+      <ambientLight intensity={0.35} />
+      <hemisphereLight args={['#8bb4e8', '#0a1424', 0.6]} />
+      <directionalLight
+        ref={lightRef}
+        position={[3, 2, 4.5]}
+        intensity={2.6}
+      />
       <Stars
         radius={90}
         depth={50}
@@ -99,10 +85,10 @@ export default function GlobeScene() {
         <JourneyArcs />
       </group>
 
-      {/* Beautiful blue glow: a tight bright rim plus a soft wide halo. Outside
-          the rotating group so it stays centred on the camera-facing limb. */}
-      <Atmosphere color="#5fb2ff" scale={1.14} intensity={1.15} power={3.2} />
-      <Atmosphere color="#8fd0ff" scale={1.45} intensity={0.45} power={2.0} />
+      {/* Beautiful blue glow: an additive fresnel rim plus a soft, broad halo
+          that blend into one luminous atmosphere (bloom spreads it further). */}
+      <Atmosphere color="#4aa3ff" scale={1.15} intensity={1.3} power={3.0} />
+      <Atmosphere color="#79c2ff" scale={1.3} intensity={0.6} power={1.5} />
 
       {bloom && (
         <EffectComposer>

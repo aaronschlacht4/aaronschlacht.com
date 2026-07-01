@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { BackSide, ShaderMaterial, Color } from 'three';
+import { BackSide, AdditiveBlending, ShaderMaterial, Color } from 'three';
 import { GLOBE_RADIUS } from '../lib/geo';
 
 /**
@@ -24,6 +24,7 @@ export default function Atmosphere({
       side: BackSide,
       depthWrite: false,
       toneMapped: false,
+      blending: AdditiveBlending,
       uniforms: {
         uColor: { value: new Color(color) },
         uIntensity: { value: intensity },

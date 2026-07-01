@@ -42,19 +42,21 @@ const WARM = ['rgba(255,240,220,0.9)', 'rgba(255,226,196,0.85)'];
 type Shot = {
   top: string;
   left: string;
-  angle: string;
-  dx: string;
-  dy: string;
+  /** travel direction in degrees (CSS: 0=right, 90=down) */
+  deg: number;
+  dist: number;
   len: number;
   delay: string;
 };
 
 // Three streaks on an 18s cycle, offset by 6s → one shooting star every ~6s,
-// each with a different start, angle and length so they never look identical.
+// each with a different start, direction and length so they never look identical.
+// The tail is drawn along the travel direction (deg) so it always trails the
+// head correctly — the thing that makes it read as a real meteor.
 const SHOTS: Shot[] = [
-  { top: '8%', left: '62%', angle: '20deg', dx: '-720px', dy: '260px', len: 170, delay: '0s' },
-  { top: '18%', left: '18%', angle: '155deg', dx: '760px', dy: '300px', len: 140, delay: '6s' },
-  { top: '5%', left: '40%', angle: '32deg', dx: '-520px', dy: '340px', len: 190, delay: '12s' },
+  { top: '9%', left: '72%', deg: 158, dist: 820, len: 160, delay: '0s' },
+  { top: '13%', left: '14%', deg: 26, dist: 860, len: 130, delay: '6s' },
+  { top: '5%', left: '46%', deg: 133, dist: 720, len: 185, delay: '12s' },
 ];
 
 export default function Starfield() {
@@ -114,31 +116,40 @@ export default function Starfield() {
       {layer(mid, 1.6, '6.5s')}
       {layer(big, 2.4, '9s', 'rgba(180,210,255,0.9)')}
 
-      {/* Shooting stars */}
-      {SHOTS.map((sh, i) => (
-        <div
-          key={i}
-          style={
-            {
-              position: 'absolute',
-              top: sh.top,
-              left: sh.left,
-              width: `${sh.len}px`,
-              height: '2px',
-              borderRadius: '2px',
-              background:
-                'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(190,220,255,0.6) 60%, #ffffff 100%)',
-              filter: 'drop-shadow(0 0 6px rgba(190,220,255,0.9))',
-              opacity: 0,
-              transformOrigin: 'right center',
-              animation: `shooting-star 18s linear ${sh.delay} infinite`,
-              '--angle': sh.angle,
-              '--dx': sh.dx,
-              '--dy': sh.dy,
-            } as CSSProperties
-          }
-        />
-      ))}
+      {/* Shooting stars — a bright head with a thin tapered tail trailing
+          exactly along the travel direction. */}
+      {SHOTS.map((sh, i) => {
+        const rad = (sh.deg * Math.PI) / 180;
+        const dx = Math.cos(rad) * sh.dist;
+        const dy = Math.sin(rad) * sh.dist;
+        return (
+          <div
+            key={i}
+            style={
+              {
+                position: 'absolute',
+                top: sh.top,
+                left: sh.left,
+                width: `${sh.len}px`,
+                height: '2px',
+                // head sits at the leading (right) end; tail fades back
+                background:
+                  'linear-gradient(90deg, rgba(180,210,255,0) 0%, rgba(180,210,255,0.25) 62%, rgba(220,235,255,0.85) 90%, #ffffff 100%)',
+                borderRadius: '2px',
+                filter:
+                  'drop-shadow(0 0 4px rgba(200,225,255,0.95)) drop-shadow(0 0 9px rgba(120,170,255,0.6))',
+                opacity: 0,
+                transformOrigin: 'right center',
+                // rotation + translation both come from the keyframe transform
+                animation: `shooting-star 18s linear ${sh.delay} infinite`,
+                '--angle': `${sh.deg}deg`,
+                '--dx': `${dx.toFixed(0)}px`,
+                '--dy': `${dy.toFixed(0)}px`,
+              } as CSSProperties
+            }
+          />
+        );
+      })}
     </div>
   );
 }

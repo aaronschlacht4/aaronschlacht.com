@@ -1,6 +1,12 @@
 import { useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
-import { Box3, Vector3, type Object3D, type Mesh } from 'three';
+import {
+  Box3,
+  Vector3,
+  MeshStandardMaterial,
+  type Object3D,
+  type Mesh,
+} from 'three';
 import { GLOBE_RADIUS } from '../lib/geo';
 
 const MODEL_URL = '/models/earth.glb';
@@ -21,7 +27,26 @@ const MODEL_SPIN = Math.PI; // radians about +Y
  */
 export default function Earth() {
   const { scene } = useGLTF(MODEL_URL);
-  const model = useMemo(() => scene.clone(true), [scene]);
+  const model = useMemo(() => {
+    const m = scene.clone(true);
+    // The Sketchfab surface is slightly metallic (renders dark) with an
+    // always-on white emissive (city lights that also wash the day side). Make
+    // it a clean diffuse Earth so the front-lit hemisphere reads bright & blue,
+    // keeping only a gentle emissive for night-side city glow.
+    m.traverse((o) => {
+      const mesh = o as Mesh;
+      if (!mesh.isMesh) return;
+      const mat = mesh.material as MeshStandardMaterial;
+      if (!mat || !('metalness' in mat)) return;
+      if (o.name.includes('pSphere1')) {
+        mat.metalness = 0;
+        mat.roughness = 1;
+        mat.envMapIntensity = 0;
+        mat.emissiveIntensity = 0.35;
+      }
+    });
+    return m;
+  }, [scene]);
 
   // Scale/centre on the *surface* sphere (pSphere1), not the whole model — the
   // outer atmosphere shell is larger and would otherwise shrink the globe.
