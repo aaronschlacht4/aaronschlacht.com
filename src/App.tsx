@@ -75,12 +75,12 @@ export default function App() {
           is transparent so the starfield shows around and behind the globe. */}
       <div
         className="fixed inset-0 z-0"
-        style={{ opacity: globeOpacity, pointerEvents: 'none' }}
+        style={{ opacity: 1, pointerEvents: 'none' }}
         aria-hidden={globeOpacity < 0.05}
       >
         <Canvas
           dpr={DPR_RANGE}
-          camera={{ position: [0, 0.35, 3.0], fov: 42, near: 0.1, far: 100 }}
+          camera={{ position: [0, 0.35, 3.4], fov: 42, near: 0.1, far: 100 }}
           gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
           onCreated={({ gl }) => gl.setClearColor('#02030a', 0)}
         >

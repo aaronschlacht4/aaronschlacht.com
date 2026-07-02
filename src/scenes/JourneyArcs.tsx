@@ -1,189 +1,187 @@
 import { useMemo, useRef } from 'react';
-import { Line } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import {
   Group,
   Vector3,
   Quaternion,
   Color,
-  MeshStandardMaterial,
   BufferGeometry,
   BufferAttribute,
+  Line as ThreeLine,
   ShaderMaterial,
-  CanvasTexture,
   AdditiveBlending,
-  SRGBColorSpace,
+  MeshStandardMaterial,
   type Mesh,
 } from 'three';
-import type { Line2 } from 'three-stdlib';
 import { JOURNEY } from '../data/journey';
 import { useScene, pathPosition } from '../state/useScene';
 import { greatCircleArc, latLngToVector3 } from '../lib/geo';
 
-const SEG = 72; // points per arc → SEG-1 drawable sub-segments
-const MARKER_ALT = 1.012;
+const SEG = 120; // points per arc
+const MARKER_ALT = 1.006;
 const Y = new Vector3(0, 1, 0);
 const ACCENT = new Color('#5fb2ff');
 const tmpTangent = new Vector3();
 const tmpQuat = new Quaternion();
 
-const COMET_TRAIL = 22; // particles in the flying-star trail
-const COMET_LEN = 0.17; // how far the trail streams behind the lead star
-
-/** A soft round glow with a 4-point sparkle cross — one "star". */
-function makeStarTexture(): CanvasTexture {
-  const s = 64;
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = s;
-  const ctx = cv.getContext('2d')!;
-  const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-  g.addColorStop(0, 'rgba(255,255,255,1)');
-  g.addColorStop(0.25, 'rgba(210,235,255,0.85)');
-  g.addColorStop(0.55, 'rgba(150,200,255,0.3)');
-  g.addColorStop(1, 'rgba(120,180,255,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, s, s);
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(s / 2, 3);
-  ctx.lineTo(s / 2, s - 3);
-  ctx.moveTo(3, s / 2);
-  ctx.lineTo(s - 3, s / 2);
-  ctx.stroke();
-  const tex = new CanvasTexture(cv);
-  tex.colorSpace = SRGBColorSpace;
-  return tex;
-}
-
 /**
- * Build the comet: a cloud of `COMET_TRAIL` star points streaming backwards
- * along local -Y (the group is oriented so +Y is the direction of travel), each
- * one dimmer, smaller, and slightly scattered as it trails off. Rendered with a
- * per-point size shader + additive blending so the tip reads as a bright flying
- * star with a sparkly tail (and bloom lifts it further).
+ * The faint background track — a facing-faded thin line so it dissolves into the
+ * limb as the globe rotates rather than beaming straight across the disc.
  */
-function makeComet(): { geometry: BufferGeometry; material: ShaderMaterial } {
-  const pos = new Float32Array(COMET_TRAIL * 3);
-  const col = new Float32Array(COMET_TRAIL * 3);
-  const size = new Float32Array(COMET_TRAIL);
-  const head = new Color('#eaf4ff');
-  const tail = new Color('#5fb2ff');
-  const tmp = new Color();
-  for (let i = 0; i < COMET_TRAIL; i++) {
-    const t = i / (COMET_TRAIL - 1); // 0 = lead star, 1 = tail
-    pos[i * 3] = Math.sin(i * 12.9) * 0.01 * t; // gentle sideways scatter
-    pos[i * 3 + 1] = -t * COMET_LEN; // stream behind the tip
-    pos[i * 3 + 2] = Math.cos(i * 7.3) * 0.01 * t;
-    tmp.copy(head).lerp(tail, t).multiplyScalar(1 - t * 0.7);
-    col[i * 3] = tmp.r;
-    col[i * 3 + 1] = tmp.g;
-    col[i * 3 + 2] = tmp.b;
-    size[i] = (1 - t) * 26 + 5;
-  }
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new BufferAttribute(pos, 3));
-  geometry.setAttribute('aColor', new BufferAttribute(col, 3));
-  geometry.setAttribute('aSize', new BufferAttribute(size, 1));
-
-  const material = new ShaderMaterial({
-    uniforms: { uTex: { value: makeStarTexture() }, uTwinkle: { value: 1 } },
+function makeTrackMaterial(): ShaderMaterial {
+  return new ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    blending: AdditiveBlending,
     toneMapped: false,
-    vertexShader: `
-      attribute float aSize;
-      attribute vec3 aColor;
-      uniform float uTwinkle;
-      varying vec3 vColor;
+    blending: AdditiveBlending,
+    uniforms: { uColor: { value: new Color('#3f74a8') } },
+    vertexShader: /* glsl */ `
+      varying float vFacing;
       void main() {
-        vColor = aColor;
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = aSize * uTwinkle * (1.0 / -mv.z);
+        vec3 n = normalize(normalMatrix * normalize(position));
+        vFacing = dot(n, normalize(-mv.xyz));
         gl_Position = projectionMatrix * mv;
       }
     `,
-    fragmentShader: `
-      uniform sampler2D uTex;
-      varying vec3 vColor;
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      varying float vFacing;
       void main() {
-        vec4 tex = texture2D(uTex, gl_PointCoord);
-        gl_FragColor = vec4(vColor * tex.rgb, tex.a);
+        float a = smoothstep(0.05, 0.4, vFacing) * 0.35;
+        if (a <= 0.002) discard;
+        gl_FragColor = vec4(uColor * a, a);
       }
     `,
   });
-  return { geometry, material };
 }
 
-type Segment = { points: Vector3[]; count: number };
+/**
+ * The bright route — a glowing comet-streak. Brightest at the leading tip
+ * (uTip), fading down a cyan→blue trail behind it, and faded toward the limb by
+ * facing so it dives over the horizon. Additive, so Bloom turns it into light.
+ */
+function makeStreakMaterial(): ShaderMaterial {
+  return new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+    blending: AdditiveBlending,
+    uniforms: {
+      uHead: { value: new Color('#eaffff') },
+      uTrail: { value: new Color('#49b8ff') },
+      uTip: { value: 0 },
+    },
+    vertexShader: /* glsl */ `
+      attribute float aT;
+      varying float vFacing;
+      varying float vT;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vec3 n = normalize(normalMatrix * normalize(position));
+        vFacing = dot(n, normalize(-mv.xyz));
+        vT = aT;
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uHead;
+      uniform vec3 uTrail;
+      uniform float uTip;
+      varying float vFacing;
+      varying float vT;
+      void main() {
+        float fade = smoothstep(0.04, 0.42, vFacing);     // dive into the limb
+        float d = uTip - vT;                              // distance behind the tip
+        if (d < 0.0) discard;                             // ahead of the tip = undrawn
+        float head = exp(-pow(d / 0.05, 2.0));            // bright comet head
+        float trail = (1.0 - clamp(d / 0.7, 0.0, 1.0));   // long fading tail
+        float b = fade * (0.4 * trail + 1.6 * head);
+        vec3 col = mix(uTrail, uHead, head);
+        if (b <= 0.002) discard;
+        gl_FragColor = vec4(col * b, b);
+      }
+    `,
+  });
+}
+
+type Arc = {
+  points: Vector3[];
+  count: number;
+  track: ThreeLine;
+  streak: ThreeLine;
+  streakGeom: BufferGeometry;
+  streakMat: ShaderMaterial;
+};
 
 /**
- * The animated route between life stops, plus a glowing marker at each stop and
- * a single arrowhead that rides the tip of the currently-drawing arc. Everything
- * is a child of the rotating globe group, so the routes stay glued to the map.
- *
- * Drawing is animated by clamping each fat-line's `instanceCount` from the scroll
- * store inside useFrame — no geometry rebuilds, no React re-renders per scroll.
+ * The route between life stops: a faint track, a bright comet-streak that draws
+ * in as you scroll with a glowing head riding its tip, and a marker at each stop.
+ * All children of the rotating globe group, so they stay glued to the map.
  */
 export default function JourneyArcs() {
-  const segments: Segment[] = useMemo(() => {
-    const out: Segment[] = [];
+  const arcs: Arc[] = useMemo(() => {
+    const out: Arc[] = [];
     for (let i = 0; i < JOURNEY.length - 1; i++) {
       const a = JOURNEY[i];
       const b = JOURNEY[i + 1];
       const points = greatCircleArc(a.lat, a.lng, b.lat, b.lng, SEG);
-      out.push({ points, count: points.length - 1 });
+      const n = points.length;
+
+      const trackGeom = new BufferGeometry().setFromPoints(points);
+      const track = new ThreeLine(trackGeom, makeTrackMaterial());
+
+      const streakGeom = new BufferGeometry().setFromPoints(points);
+      const aT = new Float32Array(n);
+      for (let k = 0; k < n; k++) aT[k] = k / (n - 1);
+      streakGeom.setAttribute('aT', new BufferAttribute(aT, 1));
+      streakGeom.setDrawRange(0, 0);
+      const streakMat = makeStreakMaterial();
+      const streak = new ThreeLine(streakGeom, streakMat);
+
+      out.push({ points, count: n, track, streak, streakGeom, streakMat });
     }
     return out;
   }, []);
 
   const markerPositions = useMemo(
-    () =>
-      JOURNEY.map((s) => latLngToVector3(s.lat, s.lng, MARKER_ALT)),
+    () => JOURNEY.map((s) => latLngToVector3(s.lat, s.lng, MARKER_ALT)),
     [],
   );
 
-  const brightRefs = useRef<(Line2 | null)[]>([]);
   const markerRefs = useRef<(Mesh | null)[]>([]);
-  const arrowRef = useRef<Group>(null);
-
-  // The flying-star comet that rides the tip of the currently-drawing arc.
-  const comet = useMemo(makeComet, []);
+  const cometRef = useRef<Group>(null);
+  const cometCoreRef = useRef<Mesh>(null);
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
     const pos = pathPosition(useScene.getState().journeyT);
 
-    // Twinkle the flying star.
-    comet.material.uniforms.uTwinkle.value = 1 + Math.sin(t * 6) * 0.25;
-
-    // Draw each segment up to its local progress.
-    let arrowPlaced = false;
-    for (let i = 0; i < segments.length; i++) {
+    let cometPlaced = false;
+    for (let i = 0; i < arcs.length; i++) {
       const segProgress = Math.max(0, Math.min(1, pos - i));
-      const line = brightRefs.current[i];
-      if (line) {
-        const drawn = Math.floor(segProgress * segments[i].count);
-        (line.geometry as unknown as { instanceCount: number }).instanceCount =
-          drawn;
-      }
+      const drawn = Math.round(segProgress * (arcs[i].count - 1)) + 1;
+      arcs[i].streakGeom.setDrawRange(0, segProgress > 0 ? drawn : 0);
+      arcs[i].streakMat.uniforms.uTip.value = segProgress;
 
-      // Place the arrowhead at the tip of the first partially-drawn segment.
-      if (!arrowPlaced && segProgress > 0 && segProgress < 1 && arrowRef.current) {
-        const pts = segments[i].points;
+      // The glowing comet head rides the tip of the first in-progress segment.
+      if (!cometPlaced && segProgress > 0 && segProgress < 1 && cometRef.current) {
+        const pts = arcs[i].points;
         const idx = Math.max(1, Math.floor(segProgress * (pts.length - 1)));
         const tip = pts[idx];
         tmpTangent.copy(tip).sub(pts[idx - 1]).normalize();
         tmpQuat.setFromUnitVectors(Y, tmpTangent);
-        arrowRef.current.position.copy(tip);
-        arrowRef.current.quaternion.copy(tmpQuat);
-        arrowRef.current.visible = true;
-        arrowPlaced = true;
+        cometRef.current.position.copy(tip);
+        cometRef.current.quaternion.copy(tmpQuat);
+        cometRef.current.visible = true;
+        cometPlaced = true;
       }
     }
-    if (!arrowPlaced && arrowRef.current) arrowRef.current.visible = false;
+    if (!cometPlaced && cometRef.current) cometRef.current.visible = false;
+    if (cometCoreRef.current) {
+      const s = 1 + Math.sin(t * 7) * 0.18; // gentle twinkle
+      cometCoreRef.current.scale.setScalar(s);
+    }
 
     // Markers: brighten + pulse once the route has reached them.
     for (let i = 0; i < markerRefs.current.length; i++) {
@@ -194,38 +192,18 @@ export default function JourneyArcs() {
       const targetScale = reached ? pulse : 0.6;
       m.scale.setScalar(m.scale.x + (targetScale - m.scale.x) * 0.15);
       const mat = m.material as MeshStandardMaterial;
-      const wantGlow = reached ? 2.4 : 0.4;
+      const wantGlow = reached ? 2.6 : 0.4;
       mat.emissiveIntensity += (wantGlow - mat.emissiveIntensity) * 0.15;
     }
   });
 
   return (
     <group>
-      {/* Faint full tracks for context */}
-      {segments.map((s, i) => (
-        <Line
-          key={`track-${i}`}
-          points={s.points}
-          color="#2a4a6a"
-          lineWidth={1}
-          transparent
-          opacity={0.35}
-        />
-      ))}
-
-      {/* Bright animated routes */}
-      {segments.map((s, i) => (
-        <Line
-          key={`bright-${i}`}
-          ref={(el) => {
-            brightRefs.current[i] = el as unknown as Line2 | null;
-          }}
-          points={s.points}
-          color="#7fc4ff"
-          lineWidth={2.5}
-          transparent
-          opacity={0.95}
-        />
+      {arcs.map((arc, i) => (
+        <group key={`arc-${i}`}>
+          <primitive object={arc.track} />
+          <primitive object={arc.streak} />
+        </group>
       ))}
 
       {/* Stop markers */}
@@ -248,9 +226,22 @@ export default function JourneyArcs() {
         </mesh>
       ))}
 
-      {/* Flying star riding the active arc tip, trailing a sparkly comet tail */}
-      <group ref={arrowRef} visible={false}>
-        <points geometry={comet.geometry} material={comet.material} />
+      {/* Glowing comet head riding the active arc tip: a bright core inside a
+          soft halo — Bloom turns it into a travelling light. */}
+      <group ref={cometRef} visible={false}>
+        <mesh ref={cometCoreRef}>
+          <sphereGeometry args={[0.02, 20, 20]} />
+          <meshBasicMaterial color="#eaffff" toneMapped={false} />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[0.045, 20, 20]} />
+          <meshBasicMaterial
+            color="#7fd6ff"
+            transparent
+            opacity={0.35}
+            toneMapped={false}
+          />
+        </mesh>
       </group>
     </group>
   );

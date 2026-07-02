@@ -1,34 +1,49 @@
 import { useMemo } from 'react';
-import { BackSide, AdditiveBlending, ShaderMaterial, Color } from 'three';
+import { DoubleSide, AdditiveBlending, ShaderMaterial, Color } from 'three';
 import { GLOBE_RADIUS } from '../lib/geo';
 
 /**
- * A back-side sphere a little larger than the globe with a Fresnel falloff,
- * giving a soft blue rim of atmosphere without any postprocessing. Cheap and
- * works on every device; the optional bloom pass in phase 7 builds on top.
+ * The atmosphere: a back-side sphere hugging the globe with a Fresnel falloff
+ * that layers a crisp bright cyan rim right at the limb over a broad soft blue
+ * haze — the look of sunlight scattering through the edge of the atmosphere (see
+ * reference). The rim sits at the sphere's silhouette so a tight scale keeps it
+ * glued to the globe; Bloom lifts it into a luminous halo.
  */
 export default function Atmosphere({
-  color = '#5fb2ff',
-  scale = 1.18,
-  intensity = 1.0,
-  power = 3.0,
+  rimColor = '#a6ecff',
+  hazeColor = '#2f8bff',
+  scale = 0.8,
+  rimIntensity = 1.35,
+  rimPower = 5.0,
+  hazeIntensity = 0.45,
+  hazePower = 2.0,
 }: {
-  color?: string;
+  rimColor?: string;
+  hazeColor?: string;
   scale?: number;
-  intensity?: number;
-  power?: number;
+  rimIntensity?: number;
+  rimPower?: number;
+  hazeIntensity?: number;
+  hazePower?: number;
 }) {
   const material = useMemo(() => {
     return new ShaderMaterial({
       transparent: true,
-      side: BackSide,
+      // DoubleSide + no depth test: the fresnel rim lands on BOTH the inner edge
+      // of the earth disc (front faces, glowing inward) and just outside it (back
+      // faces), reading as an atmosphere that glows on the globe's limb.
+      side: DoubleSide,
       depthWrite: false,
-      toneMapped: false,
+      depthTest: false,
+      toneMapped: true,
       blending: AdditiveBlending,
       uniforms: {
-        uColor: { value: new Color(color) },
-        uIntensity: { value: intensity },
-        uPower: { value: power },
+        uRim: { value: new Color(rimColor) },
+        uHaze: { value: new Color(hazeColor) },
+        uRimI: { value: rimIntensity },
+        uRimP: { value: rimPower },
+        uHazeI: { value: hazeIntensity },
+        uHazeP: { value: hazePower },
       },
       vertexShader: /* glsl */ `
         varying vec3 vNormal;
@@ -43,22 +58,30 @@ export default function Atmosphere({
       fragmentShader: /* glsl */ `
         varying vec3 vNormal;
         varying vec3 vViewDir;
-        uniform vec3 uColor;
-        uniform float uIntensity;
-        uniform float uPower;
+        uniform vec3 uRim;
+        uniform vec3 uHaze;
+        uniform float uRimI;
+        uniform float uRimP;
+        uniform float uHazeI;
+        uniform float uHazeP;
         void main() {
-          // strongest at the limb (normal perpendicular to view), fading inward
-          float fres = 1.0 - abs(dot(vNormal, vViewDir));
-          float glow = pow(fres, uPower) * uIntensity;
-          gl_FragColor = vec4(uColor, glow);
+          // 1 at the limb (normal ⟂ view), 0 head-on. Smootherstep-shaped so the
+          // rim gradient has no hard edge or banding.
+          float fres = clamp(1.0 - abs(dot(normalize(vNormal), normalize(vViewDir))), 0.0, 1.0);
+          fres = fres * fres * (3.0 - 2.0 * fres); // smoothstep easing
+          float rim  = pow(fres, uRimP)  * uRimI;  // bright cyan edge
+          float haze = pow(fres, uHazeP) * uHazeI; // broad, soft blue falloff
+          vec3 color = uRim * rim + uHaze * haze;
+          float alpha = clamp(rim + haze, 0.0, 1.0);
+          gl_FragColor = vec4(color, alpha);
         }
       `,
     });
-  }, [color, intensity, power]);
+  }, [rimColor, hazeColor, rimIntensity, rimPower, hazeIntensity, hazePower]);
 
   return (
     <mesh material={material} scale={scale}>
-      <sphereGeometry args={[GLOBE_RADIUS, 64, 64]} />
+      <sphereGeometry args={[GLOBE_RADIUS, 128, 128]} />
     </mesh>
   );
 }

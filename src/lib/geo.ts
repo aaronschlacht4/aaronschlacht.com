@@ -37,8 +37,8 @@ export function greatCircleArc(
   latB: number,
   lngB: number,
   segments = 64,
-  baseAltitude = 1.015,
-  archHeight = 0.18,
+  baseAltitude = 1.004,
+  archHeight = 0.02,
 ): Vector3[] {
   const a = latLngToVector3(latA, lngA, 1).normalize();
   const b = latLngToVector3(latB, lngB, 1).normalize();
@@ -58,9 +58,11 @@ export function greatCircleArc(
       const k1 = Math.sin(t * omega) / sinOmega;
       p = a.clone().multiplyScalar(k0).add(b.clone().multiplyScalar(k1));
     }
-    // arch: 0 at ends, max in the middle, scaled (gently) by hop length so the
-    // long transcontinental hops don't balloon off-screen
-    const arch = Math.sin(Math.PI * t) * archHeight * (0.3 + omega * 0.35);
+    // arch: 0 at ends, max in the middle. Scaled gently by hop length and capped
+    // so even the long transcontinental hops stay hugging the globe rather than
+    // ballooning out past the limb (where they read as stray beams edge-on).
+    const arch =
+      Math.sin(Math.PI * t) * archHeight * Math.min(1, 0.35 + omega * 0.18);
     p.normalize().multiplyScalar(baseAltitude + arch);
     points.push(p);
   }

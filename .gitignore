@@ -27,3 +27,8 @@ pnpm-debug.log*
 /_hero.mjs
 /test-results/
 /playwright-report/
+
+# large model source / intermediate exports (only earth_hq.glb is shipped)
+*.blend
+public/models/earth_new.glb
+public/models/earth_opt.glb

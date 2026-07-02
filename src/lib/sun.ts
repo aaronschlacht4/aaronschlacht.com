@@ -23,6 +23,13 @@ export const localSunDirection = new Vector3(1, 0, 0);
 export const worldSunDirection = new Vector3(1, 0, 0);
 
 /**
+ * `worldSunDirection` transformed into the camera's VIEW space. The Earth surface
+ * shader compares this against the view-space surface normal to mask the city
+ * lights to the night side. GlobeScene mutates it in place each frame.
+ */
+export const sunViewDirection = new Vector3(1, 0, 0);
+
+/**
  * Sub-solar point (degrees) for a given UTC instant. Low-precision astronomy —
  * declination from day-of-year, longitude from time-of-day plus the equation of
  * time. Good to ~1–2°, which is far finer than the eye can judge on a globe.
