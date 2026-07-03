@@ -39,7 +39,7 @@ export default function MobileFallback() {
       {/* Life journey as a vertical timeline */}
       <section className="mx-auto mt-12 max-w-md">
         <p className="mb-4 text-xs uppercase tracking-[0.3em] text-[var(--color-accent)]">
-          A life in six moves
+          A life in four moves
         </p>
         <ol className="relative ml-3 border-l border-white/10">
           {JOURNEY.map((s) => (

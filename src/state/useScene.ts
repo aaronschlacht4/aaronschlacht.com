@@ -29,6 +29,20 @@ export const useScene = create<SceneState>((set) => ({
 
 const N = JOURNEY.length;
 
+/**
+ * Smoothed path position, damped toward the scroll target each frame by
+ * GlobeScene and read by both the globe rotation and the arc drawing, so the
+ * route glides smoothly and stays in sync even when the scroll input is jumpy.
+ */
+export const journeyAnim = { pos: 0 };
+
+/**
+ * Manual drag-to-rotate offset (radians) applied on top of the current stop
+ * orientation, so viewers can spin the globe to look around. Reset when the
+ * scroll advances to a new stop so each city re-centres.
+ */
+export const userRotate = { x: 0, y: 0 };
+
 /** Position along the path in stop-units, e.g. 2.4 = 40% from stop 2 to stop 3. */
 export function pathPosition(journeyT: number): number {
   return Math.max(0, Math.min(1, journeyT)) * (N - 1);

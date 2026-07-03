@@ -3,12 +3,12 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { isLowMemory } from '../lib/env';
-import { Group, Quaternion, type DirectionalLight } from 'three';
+import { Group, Quaternion, Euler, type DirectionalLight } from 'three';
 import Earth from './Earth';
 import Atmosphere from './Atmosphere';
 import JourneyArcs from './JourneyArcs';
 import { JOURNEY } from '../data/journey';
-import { useScene, pathPosition } from '../state/useScene';
+import { useScene, pathPosition, journeyAnim, userRotate } from '../state/useScene';
 import { latLngToVector3, easeInOut, easeOutCubic, clamp01 } from '../lib/geo';
 import {
   updateSunDirection,
@@ -18,6 +18,8 @@ import {
 } from '../lib/sun';
 
 const tmpQuat = new Quaternion();
+const tmpUserQuat = new Quaternion();
+const tmpEuler = new Euler();
 
 /**
  * The globe. Its orientation is driven entirely by scroll: each life stop has a
@@ -29,6 +31,7 @@ export default function GlobeScene() {
   const groupRef = useRef<Group>(null);
   const outerRef = useRef<Group>(null);
   const introStart = useRef<number | null>(null);
+  const exitAnim = useRef(0);
   const lightRef = useRef<DirectionalLight>(null);
   const camera = useThree((s) => s.camera);
   // Bloom only on capable devices — it lifts the city lights, arcs and sunlit
@@ -50,30 +53,41 @@ export default function GlobeScene() {
     });
   }, [targetDir]);
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     const group = groupRef.current;
     if (!group) return;
 
-    // 0) Fly the whole globe in on load and out as the journey ends — we move the
-    // ball toward/away from the camera rather than fading the canvas, so the
-    // screen itself never changes. Intro: a one-time zoom-in. Outro: recede into
-    // the distance as `globeOpacity` (1 → 0) drops past the journey.
+    // 0) Fly the whole globe in on load and cleanly OFF the top once the journey
+    // is done — one more scroll past the last stop sends the ball straight up and
+    // out of frame (damped so a flick launches it smoothly), rather than drifting
+    // it to a new spot. The screen itself never changes; only the ball moves.
     const outer = outerRef.current;
     if (outer) {
       if (introStart.current === null) introStart.current = state.clock.elapsedTime;
       const introE = easeOutCubic(
         clamp01((state.clock.elapsedTime - introStart.current) / 1.7),
       );
-      const exit = 1 - useScene.getState().globeOpacity; // 0 in view, 1 gone
-      // Intro: zoom in from far (z −3.2 → 0, scaling up). Outro: the ball lifts up
-      // and out of frame to clear the way for the sections, rather than fading.
-      outer.position.z = -3.2 * (1 - introE) - 1.4 * exit;
-      outer.position.y = 4.6 * exit;
-      outer.scale.setScalar((0.25 + 0.75 * introE) * (1 - 0.12 * exit));
+      const exitTarget = 1 - useScene.getState().globeOpacity; // 0 in view, 1 gone
+      const ke = 1 - Math.exp(-7 * Math.min(delta, 0.05));
+      exitAnim.current += (exitTarget - exitAnim.current) * ke;
+      if (Math.abs(exitTarget - exitAnim.current) < 0.001) exitAnim.current = exitTarget;
+      const exit = easeInOut(exitAnim.current);
+
+      outer.position.z = -3.2 * (1 - introE);          // intro zoom-in only
+      outer.position.y = 5.6 * exit;                    // straight up and off-screen
+      outer.scale.setScalar(0.25 + 0.75 * introE);      // full size as it leaves
     }
 
-    // 1) Orient the globe to the scrolled-to point along the path.
-    const pos = pathPosition(useScene.getState().journeyT);
+    // 1) Orient the globe to the scrolled-to point along the path. Damp toward
+    // the scroll target so the rotation and the arcs glide smoothly and quickly
+    // instead of snapping with each scroll event.
+    const target = pathPosition(useScene.getState().journeyT);
+    // Frame-rate-independent smoothing toward the target stop, then snap once
+    // close so each stop settles cleanly (comet hides, city centres).
+    const k = 1 - Math.exp(-9 * Math.min(delta, 0.05));
+    journeyAnim.pos += (target - journeyAnim.pos) * k;
+    if (Math.abs(target - journeyAnim.pos) < 0.008) journeyAnim.pos = target;
+    const pos = journeyAnim.pos;
     const i = Math.min(Math.floor(pos), stopQuats.length - 1);
     const frac = pos - i;
     if (i >= stopQuats.length - 1) {
@@ -81,6 +95,13 @@ export default function GlobeScene() {
     } else {
       tmpQuat.copy(stopQuats[i]).slerp(stopQuats[i + 1], easeInOut(frac));
       group.quaternion.copy(tmpQuat);
+    }
+
+    // Layer the viewer's manual drag rotation on top of the stop orientation
+    // (world-space, so dragging right spins the globe right).
+    if (userRotate.x !== 0 || userRotate.y !== 0) {
+      tmpUserQuat.setFromEuler(tmpEuler.set(userRotate.x, userRotate.y, 0, 'YXZ'));
+      group.quaternion.premultiply(tmpUserQuat);
     }
 
     // 2) Real-time sun: sub-solar point → local dir → rotate into the globe's

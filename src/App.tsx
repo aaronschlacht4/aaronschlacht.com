@@ -1,21 +1,22 @@
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 
 import GlobeScene from './scenes/GlobeScene';
 import Starfield from './components/Starfield';
+import StopHeadline from './components/StopHeadline';
 import CursorTrail from './components/CursorTrail';
 import JourneyOverlay from './components/JourneyOverlay';
 import Sections from './components/Sections';
 import MobileFallback from './components/MobileFallback';
 
-import { useScene } from './state/useScene';
+import { useScene, userRotate } from './state/useScene';
 import { JOURNEY } from './data/journey';
 import { clamp01 } from './lib/geo';
 import { DPR_RANGE, isLowMemory, isSmallScreen } from './lib/env';
 
-// Scroll distance (in vh) given to the globe journey before the sections begin.
-// Kept short so the arcs scrub past quickly rather than dragging on.
-const JOURNEY_VH = (JOURNEY.length + 1) * 42;
+// Scroll distance (in vh) for the whole journey. Each stop gets a comfortable
+// chunk of scroll; crossing into it triggers the (auto-playing) transition.
+const JOURNEY_VH = (JOURNEY.length + 1) * 44;
 
 export default function App() {
   const setScroll = useScene((s) => s.setScroll);
@@ -24,9 +25,11 @@ export default function App() {
 
   // Decide the rendering path once. Phones / low-power → 2D fallback.
   const [useFallback] = useState(() => isSmallScreen() || isLowMemory());
+  const stepRef = useRef(0);
 
   useEffect(() => {
     if (useFallback) return;
+    const N = JOURNEY.length;
     let raf = 0;
     const onScroll = () => {
       if (raf) return;
@@ -37,10 +40,22 @@ export default function App() {
         const journeyPx = (JOURNEY_VH / 100) * vh;
         const journeyDistance = Math.max(1, journeyPx - vh);
 
-        const journeyT = clamp01(y / journeyDistance);
-        // Globe fades out over the last stretch as the sections take over.
-        const fadeStart = journeyDistance * 0.88;
-        const fadeDist = vh * 0.7;
+        // Snap to the nearest stop: scrolling a chunk advances one stop and the
+        // transition plays itself (the arc isn't scrubbed by the raw scroll). The
+        // steps finish by 76% of the journey scroll, leaving room to rest on the
+        // last stop before the globe lifts away.
+        const raw = clamp01(y / journeyDistance);
+        const step = Math.round(clamp01(raw / 0.76) * (N - 1));
+        if (step !== stepRef.current) {
+          stepRef.current = step;
+          userRotate.x = 0; // re-centre the new city (drop any manual spin)
+          userRotate.y = 0;
+        }
+        const journeyT = N > 1 ? step / (N - 1) : 0;
+
+        // Globe lifts away only after the last stop, over the final stretch.
+        const fadeStart = journeyDistance * 0.86;
+        const fadeDist = journeyDistance * 0.14;
         const globeOp = 1 - clamp01((y - fadeStart) / fadeDist);
 
         setScroll(journeyT, globeOp);
@@ -54,6 +69,41 @@ export default function App() {
       if (raf) cancelAnimationFrame(raf);
     };
   }, [useFallback, setScroll, markScrolled]);
+
+  // Drag anywhere over the globe (while the journey leads) to spin it around.
+  useEffect(() => {
+    if (useFallback) return;
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    const onDown = (e: PointerEvent) => {
+      if (useScene.getState().globeOpacity < 0.5) return; // only during the journey
+      dragging = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      userRotate.y += (e.clientX - lastX) * 0.006;
+      userRotate.x = Math.max(
+        -1.1,
+        Math.min(1.1, userRotate.x + (e.clientY - lastY) * 0.006),
+      );
+      lastX = e.clientX;
+      lastY = e.clientY;
+    };
+    const onUp = () => {
+      dragging = false;
+    };
+    window.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [useFallback]);
 
   if (useFallback) {
     return (
@@ -71,8 +121,12 @@ export default function App() {
       {/* Full-page starfield behind everything (persists through the sections). */}
       <Starfield />
 
-      {/* Fixed globe behind everything; fades out into the sections. Its canvas
-          is transparent so the starfield shows around and behind the globe. */}
+      {/* Big per-stop headline, BEHIND the globe (globe canvas is transparent, so
+          it shows around and through the planet). */}
+      <StopHeadline />
+
+      {/* Fixed globe; its transparent canvas lets the headline + starfield show
+          around and behind the planet. Fades/​lifts out into the sections. */}
       <div
         className="fixed inset-0 z-0"
         style={{ opacity: 1, pointerEvents: 'none' }}

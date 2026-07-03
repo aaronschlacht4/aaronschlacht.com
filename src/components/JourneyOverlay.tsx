@@ -13,7 +13,6 @@ export default function JourneyOverlay() {
   const index = useScene((s) => focusedStopIndex(s.journeyT));
   const globeOpacity = useScene((s) => s.globeOpacity);
   const hasScrolled = useScene((s) => s.hasScrolled);
-  const stop = JOURNEY[index];
 
   return (
     <div
@@ -31,38 +30,6 @@ export default function JourneyOverlay() {
         <div className="pointer-events-auto rounded-full border border-white/10 bg-[rgba(8,13,22,0.5)] px-3 py-1.5 backdrop-blur-md">
           <Clock />
         </div>
-      </div>
-
-      {/* Current stop caption */}
-      <div className="absolute bottom-20 left-4 max-w-sm sm:bottom-24 sm:left-10">
-        <p className="mb-2 text-xs uppercase tracking-[0.3em] text-[var(--color-accent)]">
-          {index === 0 ? 'A life in six moves' : `Stop ${index + 1} of ${JOURNEY.length}`}
-        </p>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={stop.id}
-            initial={{ opacity: 0, y: 16, filter: 'blur(6px)' }}
-            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, y: -16, filter: 'blur(6px)' }}
-            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <h2
-              className="text-4xl font-bold leading-none tracking-tight sm:text-6xl"
-              style={{ fontFamily: 'var(--font-display)' }}
-            >
-              {stop.place}
-            </h2>
-            <p className="mt-2 text-lg text-ink-dim sm:text-xl">{stop.region}</p>
-            <p className="mt-1 text-sm font-medium text-[var(--color-accent)]">
-              {stop.when}
-            </p>
-            {stop.note && (
-              <p className="mt-3 max-w-xs text-sm leading-relaxed text-ink/70">
-                {stop.note}
-              </p>
-            )}
-          </motion.div>
-        </AnimatePresence>
       </div>
 
       {/* Vertical progress rail */}
