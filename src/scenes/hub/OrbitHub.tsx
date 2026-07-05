@@ -7,6 +7,7 @@ import {
   LineDashedMaterial,
   LineLoop,
   Color,
+  type PerspectiveCamera,
 } from 'three';
 import { SPHERES, type Orbit } from '../../data/spheres';
 import { useScene } from '../../state/useScene';
@@ -79,12 +80,23 @@ export default function OrbitHub() {
     [],
   );
 
-  useFrame((_, dt) => {
+  useFrame((state, dt) => {
     const { phase, hovered, activeSection } = useScene.getState();
     hub.current = damp(hub.current, phase === 'journey' ? 0 : 1, 4, dt);
     section.current = damp(section.current, activeSection ? 1 : 0, 5, dt);
     const h = easeInOut(hub.current);
     const sec = easeInOut(section.current);
+
+    // Where the docked emblem lands, derived from the camera each frame so it
+    // stays pinned to the upper-left corner at any aspect ratio (a fixed world
+    // point would drift toward centre on wider viewports). Target NDC ≈ top-left.
+    const cam = state.camera as PerspectiveCamera;
+    const dockZ = 0.4;
+    const depth = cam.position.z - dockZ;
+    const halfH = Math.tan(((cam.fov ?? 42) * Math.PI) / 360) * depth;
+    const halfW = halfH * (cam.aspect ?? 1);
+    const dockX = -0.78 * halfW;
+    const dockY = 0.5 * halfH + cam.position.y;
 
     for (let i = 0; i < N; i++) {
       const g = refs.current[i];
@@ -104,12 +116,10 @@ export default function OrbitHub() {
       let scale = h * hoverS.current[i];
 
       if (activeSection === def.id) {
-        // dock to the top-left as the section's rotating emblem. These world
-        // coords project to the upper-left corner at the scene camera
-        // ([0,0.35,3.4], fov 42) — see the header's pl-[8.5rem] that clears it.
-        x = x * (1 - sec) + -1.12 * sec;
-        y = y * (1 - sec) + 1.04 * sec;
-        z = z * (1 - sec) + 0.4 * sec;
+        // dock to the top-left as the section's rotating emblem
+        x = x * (1 - sec) + dockX * sec;
+        y = y * (1 - sec) + dockY * sec;
+        z = z * (1 - sec) + dockZ * sec;
         scale = scale * (1 - sec) + 1.0 * sec;
       } else if (activeSection) {
         scale *= 1 - sec;
