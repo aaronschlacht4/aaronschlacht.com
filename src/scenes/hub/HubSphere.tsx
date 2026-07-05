@@ -5,11 +5,10 @@ import { useScene } from '../../state/useScene';
 import {
   CanvasTexture,
   RepeatWrapping,
-  SRGBColorSpace,
   Color,
   MeshStandardMaterial,
   MeshPhysicalMaterial,
-  CatmullRomCurve3,
+  IcosahedronGeometry,
   Box3,
   Vector3,
   Group,
@@ -101,165 +100,84 @@ function addGoldGlow(
         '#include <emissivemap_fragment>',
         `#include <emissivemap_fragment>
          float _gf = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
-         _gf = pow(clamp(_gf, 0.0, 1.0), 1.6);
-         totalEmissiveRadiance += uGold * _gf * uGlowAmt * 1.15;`,
+         _gf = pow(clamp(_gf, 0.0, 1.0), 3.2);
+         totalEmissiveRadiance += uGold * _gf * uGlowAmt * 1.3;`,
       );
   };
   mat.needsUpdate = true;
 }
 
-/** Fibrous thread bump texture — fine lengthwise strands for a wool look. */
-function threadTexture(): CanvasTexture {
-  const w = 128, h = 32;
+/** Fine paper-tooth speckle for a subtle fibrous bump on the paper surface. */
+function paperBumpTexture(): CanvasTexture {
+  const s = 256;
   const cv = document.createElement('canvas');
-  cv.width = w;
-  cv.height = h;
+  cv.width = cv.height = s;
   const ctx = cv.getContext('2d')!;
   ctx.fillStyle = '#808080';
-  ctx.fillRect(0, 0, w, h);
-  let seed = 91;
+  ctx.fillRect(0, 0, s, s);
+  let seed = 17;
   const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
-  for (let i = 0; i < 70; i++) {
-    const y = rnd() * h;
-    ctx.strokeStyle = `rgba(${rnd() < 0.5 ? '210,210,210' : '70,70,70'},${0.3 + rnd() * 0.4})`;
-    ctx.lineWidth = 0.6 + rnd();
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.bezierCurveTo(w * 0.3, y + rnd() * 3 - 1.5, w * 0.6, y + rnd() * 3 - 1.5, w, y + rnd() * 2 - 1);
-    ctx.stroke();
+  for (let i = 0; i < 12000; i++) {
+    const v = (110 + rnd() * 60) | 0;
+    ctx.fillStyle = `rgba(${v},${v},${v},0.45)`;
+    ctx.fillRect(rnd() * s, rnd() * s, 1, 1);
   }
   const tex = new CanvasTexture(cv);
   tex.wrapS = tex.wrapT = RepeatWrapping;
-  tex.repeat.set(8, 1);
+  tex.repeat.set(3, 3);
   return tex;
 }
 
-/** Wound-yarn surface: the whole sphere covered in fine wound fibre (map+bump). */
-function yarnSurfaceTexture(color: string): { map: CanvasTexture; bump: CanvasTexture } {
-  const s = 512;
-  const colCv = document.createElement('canvas');
-  const bumpCv = document.createElement('canvas');
-  colCv.width = colCv.height = bumpCv.width = bumpCv.height = s;
-  const c = colCv.getContext('2d')!;
-  const bctx = bumpCv.getContext('2d')!;
-  const base = new Color(color);
-  const hex = (col: Color) =>
-    `rgb(${(col.r * 255) | 0},${(col.g * 255) | 0},${(col.b * 255) | 0})`;
-  c.fillStyle = hex(base.clone().multiplyScalar(0.42));
-  c.fillRect(0, 0, s, s);
-  bctx.fillStyle = '#7d7d7d';
-  bctx.fillRect(0, 0, s, s);
-  let seed = 33;
-  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
-  // fine fibres, wound at a slight diagonal with per-strand waviness
-  for (let i = 0; i < 1600; i++) {
-    const y0 = rnd() * s * 1.3 - s * 0.15;
-    const shade = 0.5 + rnd() * 0.8;
-    const strand = base.clone().multiplyScalar(shade);
-    c.strokeStyle = hex(strand);
-    c.lineWidth = 0.8 + rnd() * 1.4;
-    bctx.strokeStyle = shade > 0.95 ? 'rgba(225,225,225,0.5)' : 'rgba(55,55,55,0.5)';
-    bctx.lineWidth = c.lineWidth;
-    const slope = 0.22;
-    const wav = 2 + rnd() * 3;
-    c.beginPath();
-    bctx.beginPath();
-    for (let x = 0; x <= s; x += 14) {
-      const yy = y0 + x * slope + Math.sin(x * 0.04 + i) * wav;
-      if (x === 0) {
-        c.moveTo(x, yy);
-        bctx.moveTo(x, yy);
-      } else {
-        c.lineTo(x, yy);
-        bctx.lineTo(x, yy);
+/**
+ * A crumpled ball of paper: an icosphere whose vertices are pushed along a set
+ * of random triangle-wave "fold planes" to carve sharp creases, rendered flat-
+ * shaded so the facets read as wadded paper. Cream, matte, with a faint tooth.
+ */
+function PaperBall({ glow }: { glow: { value: number } }) {
+  const bump = useMemo(paperBumpTexture, []);
+  const geometry = useMemo(() => {
+    // Coarse-ish icosphere so each flat facet reads as a paper plane.
+    const g = new IcosahedronGeometry(R, 9);
+    let seed = 3;
+    const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+    // random creasing planes: triangle waves make sharp ridges/valleys. A few
+    // low-freq folds wad the ball; higher-freq ones add finer crumple.
+    const folds = Array.from({ length: 11 }, (_, k) => ({
+      dir: new Vector3(rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1).normalize(),
+      freq: k < 5 ? 2 + rnd() * 3 : 6 + rnd() * 8,
+      amp: k < 5 ? 0.05 + rnd() * 0.06 : 0.02 + rnd() * 0.03,
+    }));
+    const pos = g.attributes.position;
+    const p = new Vector3();
+    const n = new Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      p.fromBufferAttribute(pos, i);
+      n.copy(p).normalize();
+      let d = 0;
+      for (const f of folds) {
+        const t = p.dot(f.dir) * f.freq;
+        const tw = Math.abs((((t % 2) + 2) % 2) - 1) * 2 - 1; // triangle wave [-1,1]
+        d += tw * f.amp;
       }
+      p.addScaledVector(n, d * R);
+      pos.setXYZ(i, p.x, p.y, p.z);
     }
-    c.stroke();
-    bctx.stroke();
-  }
-  const map = new CanvasTexture(colCv);
-  map.colorSpace = SRGBColorSpace;
-  map.wrapS = map.wrapT = RepeatWrapping;
-  map.repeat.set(2, 2);
-  const bump = new CanvasTexture(bumpCv);
-  bump.wrapS = bump.wrapT = RepeatWrapping;
-  bump.repeat.set(2, 2);
-  return { map, bump };
-}
-
-/** A high-quality ball of wound yarn: a fibrous core wrapped in dense strands. */
-function YarnBall({ color, glow }: { color: string; glow: { value: number } }) {
-  const fibreBump = useMemo(threadTexture, []);
-  const surface = useMemo(() => yarnSurfaceTexture(color), [color]);
-  // The core sphere carries the golden inner glow; it reads through the gaps in
-  // the wound strands as light rising from inside the ball.
-  const coreMat = useMemo(() => {
+    pos.needsUpdate = true;
+    return g;
+  }, []);
+  const material = useMemo(() => {
     const m = new MeshStandardMaterial({
-      map: surface.map,
-      bumpMap: surface.bump,
-      bumpScale: 0.02,
-      roughness: 0.95,
+      color: new Color('#e9e2cf'), // warm paper cream
+      roughness: 0.97,
+      metalness: 0,
+      flatShading: true, // hard facets → crumpled-paper look
+      bumpMap: bump,
+      bumpScale: 0.003,
     });
     addGoldGlow(m, glow);
     return m;
-  }, [surface, glow]);
-  const { threads, loose } = useMemo(() => {
-    let seed = 7;
-    const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
-    const up = new Vector3(0, 1, 0);
-    const out: { curve: CatmullRomCurve3; shade: number }[] = [];
-    // three shells of winding for depth and density
-    for (let shell = 0; shell < 3; shell++) {
-      for (let i = 0; i < 20; i++) {
-        const axis = new Vector3(rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1).normalize();
-        const a = new Vector3().crossVectors(axis, up);
-        if (a.lengthSq() < 1e-3) a.set(1, 0, 0);
-        a.normalize();
-        const b = new Vector3().crossVectors(axis, a).normalize();
-        const pts: Vector3[] = [];
-        const rr = R * (0.9 + shell * 0.05 + rnd() * 0.04);
-        for (let k = 0; k <= 30; k++) {
-          const t = (k / 30) * Math.PI * 2;
-          pts.push(
-            a.clone().multiplyScalar(Math.cos(t) * rr).addScaledVector(b, Math.sin(t) * rr),
-          );
-        }
-        out.push({ curve: new CatmullRomCurve3(pts, true), shade: 0.78 + rnd() * 0.34 });
-      }
-    }
-    const looseCurve = new CatmullRomCurve3([
-      new Vector3(R * 0.95, R * 0.2, 0),
-      new Vector3(R * 1.3, R * 0.05, R * 0.15),
-      new Vector3(R * 1.55, -R * 0.3, -R * 0.1),
-      new Vector3(R * 1.78, -R * 0.72, R * 0.05),
-    ]);
-    return { threads: out, loose: looseCurve };
-  }, []);
-
-  const base = new Color(color);
-  return (
-    <group>
-      {/* fibrous base so the gaps between strands read as wound yarn, not a ball */}
-      <mesh material={coreMat}>
-        <sphereGeometry args={[R * 0.96, 64, 64]} />
-      </mesh>
-      {threads.map((t, i) => (
-        <mesh key={i}>
-          <tubeGeometry args={[t.curve, 56, R * 0.026, 7, true]} />
-          <meshStandardMaterial
-            color={base.clone().multiplyScalar(t.shade)}
-            roughness={0.92}
-            bumpMap={fibreBump}
-            bumpScale={0.006}
-          />
-        </mesh>
-      ))}
-      <mesh>
-        <tubeGeometry args={[loose, 24, R * 0.026, 7, false]} />
-        <meshStandardMaterial color={base} roughness={0.92} bumpMap={fibreBump} bumpScale={0.006} />
-      </mesh>
-    </group>
-  );
+  }, [bump, glow]);
+  return <mesh geometry={geometry} material={material} />;
 }
 
 /**
@@ -360,7 +278,7 @@ export default function HubSphere({
         {def.kind === 'crystal' && (
           <GltfSphere url={MODEL_URL.crystal} polish glow={glow} />
         )}
-        {def.kind === 'yarn' && <YarnBall color={def.color} glow={glow} />}
+        {def.kind === 'paper' && <PaperBall glow={glow} />}
       </group>
     </group>
   );
