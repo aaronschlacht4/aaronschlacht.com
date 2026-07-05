@@ -2,7 +2,7 @@
  * The orbital-hub sections. Data-driven: adding/removing a sphere here never
  * touches the animation or interaction code. `kind` picks the visual/material.
  */
-export type SphereKind = 'mercury' | 'crystal' | 'paper';
+export type SphereKind = 'mercury' | 'crystal';
 
 /** Each sphere rides its own orbit (radius + plane tilt/yaw + starting angle). */
 export type Orbit = {
@@ -41,15 +41,6 @@ export const SPHERES: SphereDef[] = [
     kind: 'crystal',
     color: '#cfe0ff',
     orbit: { radius: 1.3, tilt: 0.45, yaw: 0.7, phase: 2.4 },
-  },
-  {
-    id: 'books',
-    label: 'Books',
-    tagline: 'What I’m reading & notes',
-    route: '/books',
-    kind: 'paper',
-    color: '#d8cfb8',
-    orbit: { radius: 1.66, tilt: 0.26, yaw: -0.6, phase: 4.3 },
   },
 ];
 

@@ -3,12 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
 import { useScene } from '../../state/useScene';
 import {
-  CanvasTexture,
-  RepeatWrapping,
   Color,
-  MeshStandardMaterial,
   MeshPhysicalMaterial,
-  IcosahedronGeometry,
   Box3,
   Vector3,
   Group,
@@ -105,79 +101,6 @@ function addGoldGlow(
       );
   };
   mat.needsUpdate = true;
-}
-
-/** Fine paper-tooth speckle for a subtle fibrous bump on the paper surface. */
-function paperBumpTexture(): CanvasTexture {
-  const s = 256;
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = s;
-  const ctx = cv.getContext('2d')!;
-  ctx.fillStyle = '#808080';
-  ctx.fillRect(0, 0, s, s);
-  let seed = 17;
-  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
-  for (let i = 0; i < 12000; i++) {
-    const v = (110 + rnd() * 60) | 0;
-    ctx.fillStyle = `rgba(${v},${v},${v},0.45)`;
-    ctx.fillRect(rnd() * s, rnd() * s, 1, 1);
-  }
-  const tex = new CanvasTexture(cv);
-  tex.wrapS = tex.wrapT = RepeatWrapping;
-  tex.repeat.set(3, 3);
-  return tex;
-}
-
-/**
- * A crumpled ball of paper: an icosphere whose vertices are pushed along a set
- * of random triangle-wave "fold planes" to carve sharp creases, rendered flat-
- * shaded so the facets read as wadded paper. Cream, matte, with a faint tooth.
- */
-function PaperBall({ glow }: { glow: { value: number } }) {
-  const bump = useMemo(paperBumpTexture, []);
-  const geometry = useMemo(() => {
-    // Coarse-ish icosphere so each flat facet reads as a paper plane.
-    const g = new IcosahedronGeometry(R, 9);
-    let seed = 3;
-    const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
-    // random creasing planes: triangle waves make sharp ridges/valleys. A few
-    // low-freq folds wad the ball; higher-freq ones add finer crumple.
-    const folds = Array.from({ length: 11 }, (_, k) => ({
-      dir: new Vector3(rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1).normalize(),
-      freq: k < 5 ? 2 + rnd() * 3 : 6 + rnd() * 8,
-      amp: k < 5 ? 0.05 + rnd() * 0.06 : 0.02 + rnd() * 0.03,
-    }));
-    const pos = g.attributes.position;
-    const p = new Vector3();
-    const n = new Vector3();
-    for (let i = 0; i < pos.count; i++) {
-      p.fromBufferAttribute(pos, i);
-      n.copy(p).normalize();
-      let d = 0;
-      for (const f of folds) {
-        const t = p.dot(f.dir) * f.freq;
-        const tw = Math.abs((((t % 2) + 2) % 2) - 1) * 2 - 1; // triangle wave [-1,1]
-        d += tw * f.amp;
-      }
-      p.addScaledVector(n, d * R);
-      pos.setXYZ(i, p.x, p.y, p.z);
-    }
-    pos.needsUpdate = true;
-    return g;
-  }, []);
-  const material = useMemo(() => {
-    const m = new MeshStandardMaterial({
-      color: new Color('#e9e2cf'), // warm paper cream
-      roughness: 0.97,
-      metalness: 0,
-      flatShading: true, // hard facets → crumpled-paper look
-      bumpMap: bump,
-      bumpScale: 0.003,
-    });
-    addGoldGlow(m, glow);
-    return m;
-  }, [bump, glow]);
-  return <mesh geometry={geometry} material={material} />;
 }
 
 /**
@@ -278,7 +201,6 @@ export default function HubSphere({
         {def.kind === 'crystal' && (
           <GltfSphere url={MODEL_URL.crystal} polish glow={glow} />
         )}
-        {def.kind === 'paper' && <PaperBall glow={glow} />}
       </group>
     </group>
   );
