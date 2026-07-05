@@ -1,15 +1,17 @@
 import { useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Stars } from '@react-three/drei';
+import { Stars, Environment } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { isLowMemory } from '../lib/env';
 import { Group, Quaternion, Euler, type DirectionalLight } from 'three';
+import { makeSpaceEnv } from './hub/spaceEnv';
 import Earth from './Earth';
-import Atmosphere from './Atmosphere';
+import Atmosphere, { atmoGlow } from './Atmosphere';
 import JourneyArcs from './JourneyArcs';
+import OrbitHub from './hub/OrbitHub';
 import { JOURNEY } from '../data/journey';
 import { useScene, pathPosition, journeyAnim, userRotate } from '../state/useScene';
-import { latLngToVector3, easeInOut, easeOutCubic, clamp01 } from '../lib/geo';
+import { latLngToVector3, easeInOut, easeOutCubic, clamp01, lerp } from '../lib/geo';
 import {
   updateSunDirection,
   localSunDirection,
@@ -31,12 +33,16 @@ export default function GlobeScene() {
   const groupRef = useRef<Group>(null);
   const outerRef = useRef<Group>(null);
   const introStart = useRef<number | null>(null);
-  const exitAnim = useRef(0);
+  const hubAnim = useRef(0);
+  const sectionAnim = useRef(0);
+  const hubSpin = useRef(0);
   const lightRef = useRef<DirectionalLight>(null);
   const camera = useThree((s) => s.camera);
   // Bloom only on capable devices — it lifts the city lights, arcs and sunlit
   // limb without touching the daytime surface (which stays below threshold).
   const [bloom] = useState(() => !isLowMemory());
+  // Space environment for reflections/refraction on the crystal ball.
+  const env = useMemo(makeSpaceEnv, []);
 
   // Direction from globe centre toward the camera — the spot a stop rotates to.
   const targetDir = useMemo(
@@ -57,51 +63,59 @@ export default function GlobeScene() {
     const group = groupRef.current;
     if (!group) return;
 
-    // 0) Fly the whole globe in on load and cleanly OFF the top once the journey
-    // is done — one more scroll past the last stop sends the ball straight up and
-    // out of frame (damped so a flick launches it smoothly), rather than drifting
-    // it to a new spot. The screen itself never changes; only the ball moves.
+    const phase = useScene.getState().phase;
+
+    // 0) One choreographed Earth transform across the phases: intro zoom-in →
+    // hero (journey) → shrink to the hub centre → dock tiny in the top-left when
+    // a section opens. Everything is damped so it reads as one motion.
     const outer = outerRef.current;
     if (outer) {
       if (introStart.current === null) introStart.current = state.clock.elapsedTime;
       const introE = easeOutCubic(
         clamp01((state.clock.elapsedTime - introStart.current) / 1.7),
       );
-      const exitTarget = 1 - useScene.getState().globeOpacity; // 0 in view, 1 gone
-      const ke = 1 - Math.exp(-7 * Math.min(delta, 0.05));
-      exitAnim.current += (exitTarget - exitAnim.current) * ke;
-      if (Math.abs(exitTarget - exitAnim.current) < 0.001) exitAnim.current = exitTarget;
-      const exit = easeInOut(exitAnim.current);
+      const kh = 1 - Math.exp(-4 * Math.min(delta, 0.05));
+      hubAnim.current += ((phase === 'journey' ? 0 : 1) - hubAnim.current) * kh;
+      sectionAnim.current +=
+        ((phase === 'section' ? 1 : 0) - sectionAnim.current) *
+        (1 - Math.exp(-5 * Math.min(delta, 0.05)));
+      const h = easeInOut(hubAnim.current);
+      const s = easeInOut(sectionAnim.current);
 
-      outer.position.z = -3.2 * (1 - introE);          // intro zoom-in only
-      outer.position.y = 5.6 * exit;                    // straight up and off-screen
-      outer.scale.setScalar(0.25 + 0.75 * introE);      // full size as it leaves
+      // journey: hero. hub: shrink to centre. section: fly up and away (the
+      // opened sphere becomes the top-left emblem, so Earth clears out).
+      const heroScale = 0.25 + 0.75 * introE;
+      const earthScale = lerp(heroScale, lerp(0.4, 0.02, s), h);
+      outer.scale.setScalar(earthScale);
+      outer.position.set(0, h * 3.6 * s, (1 - h) * -3.2 * (1 - introE));
+      // Keep the atmosphere glow proportional to the shrinking Earth so Bloom
+      // doesn't leave an oversized halo around the tiny hub planet.
+      atmoGlow.mul = Math.min(1, earthScale / 0.85);
     }
 
-    // 1) Orient the globe to the scrolled-to point along the path. Damp toward
-    // the scroll target so the rotation and the arcs glide smoothly and quickly
-    // instead of snapping with each scroll event.
-    const target = pathPosition(useScene.getState().journeyT);
-    // Frame-rate-independent smoothing toward the target stop, then snap once
-    // close so each stop settles cleanly (comet hides, city centres).
-    const k = 1 - Math.exp(-9 * Math.min(delta, 0.05));
-    journeyAnim.pos += (target - journeyAnim.pos) * k;
-    if (Math.abs(target - journeyAnim.pos) < 0.008) journeyAnim.pos = target;
-    const pos = journeyAnim.pos;
-    const i = Math.min(Math.floor(pos), stopQuats.length - 1);
-    const frac = pos - i;
-    if (i >= stopQuats.length - 1) {
-      group.quaternion.copy(stopQuats[stopQuats.length - 1]);
+    // 1) Orientation. During the journey the globe faces the scrolled-to stop;
+    // in the hub/section it drifts on a slow tilted spin (Earth = home button).
+    if (phase === 'journey') {
+      const target = pathPosition(useScene.getState().journeyT);
+      const k = 1 - Math.exp(-9 * Math.min(delta, 0.05));
+      journeyAnim.pos += (target - journeyAnim.pos) * k;
+      if (Math.abs(target - journeyAnim.pos) < 0.008) journeyAnim.pos = target;
+      const pos = journeyAnim.pos;
+      const i = Math.min(Math.floor(pos), stopQuats.length - 1);
+      const frac = pos - i;
+      if (i >= stopQuats.length - 1) {
+        group.quaternion.copy(stopQuats[stopQuats.length - 1]);
+      } else {
+        tmpQuat.copy(stopQuats[i]).slerp(stopQuats[i + 1], easeInOut(frac));
+        group.quaternion.copy(tmpQuat);
+      }
+      if (userRotate.x !== 0 || userRotate.y !== 0) {
+        tmpUserQuat.setFromEuler(tmpEuler.set(userRotate.x, userRotate.y, 0, 'YXZ'));
+        group.quaternion.premultiply(tmpUserQuat);
+      }
     } else {
-      tmpQuat.copy(stopQuats[i]).slerp(stopQuats[i + 1], easeInOut(frac));
-      group.quaternion.copy(tmpQuat);
-    }
-
-    // Layer the viewer's manual drag rotation on top of the stop orientation
-    // (world-space, so dragging right spins the globe right).
-    if (userRotate.x !== 0 || userRotate.y !== 0) {
-      tmpUserQuat.setFromEuler(tmpEuler.set(userRotate.x, userRotate.y, 0, 'YXZ'));
-      group.quaternion.premultiply(tmpUserQuat);
+      hubSpin.current += delta * 0.06;
+      group.rotation.set(0.28, hubSpin.current, 0);
     }
 
     // 2) Real-time sun: sub-solar point → local dir → rotate into the globe's
@@ -119,8 +133,13 @@ export default function GlobeScene() {
     <>
       {/* Real sunlight: one key light at the sub-solar point + a low ambient so
           the night side stays dark enough for the city lights to read. */}
-      <ambientLight intensity={0.13} />
+      <ambientLight intensity={0.16} />
       <directionalLight ref={lightRef} intensity={2.9} color="#fff4e6" />
+      {/* Soft fixed fill so the orbiting spheres read from every angle. */}
+      <directionalLight position={[2.5, 3, 4]} intensity={0.55} color="#bcd2ff" />
+      {/* IBL for the crystal ball's reflections/refraction (no visible bg). */}
+      <Environment map={env} />
+
       <Stars
         radius={90}
         depth={50}
@@ -148,6 +167,9 @@ export default function GlobeScene() {
           hazePower={2.6}
         />
       </group>
+
+      {/* Project spheres orbiting Earth — fly in as it shrinks to the hub. */}
+      <OrbitHub />
 
       {bloom && (
         <EffectComposer multisampling={0}>

@@ -71,6 +71,7 @@ export default function Earth() {
         emissiveIntensity: isSurface ? 2.4 : 0,
         roughness: 1,
         metalness: 0,
+        envMapIntensity: 0, // keep the day/night look pure (env is for the crystal)
         transparent: mat.transparent,
         opacity: mat.opacity,
         alphaMap: mat.alphaMap ?? null,

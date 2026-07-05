@@ -6,11 +6,12 @@ import Starfield from './components/Starfield';
 import StopHeadline from './components/StopHeadline';
 import CursorTrail from './components/CursorTrail';
 import JourneyOverlay from './components/JourneyOverlay';
-import Sections from './components/Sections';
+import HubOverlay from './components/HubOverlay';
 import MobileFallback from './components/MobileFallback';
 
 import { useScene, userRotate } from './state/useScene';
 import { JOURNEY } from './data/journey';
+import { SPHERES, routeToSphere } from './data/spheres';
 import { clamp01 } from './lib/geo';
 import { DPR_RANGE, isLowMemory, isSmallScreen } from './lib/env';
 
@@ -22,6 +23,7 @@ export default function App() {
   const setScroll = useScene((s) => s.setScroll);
   const markScrolled = useScene((s) => s.markScrolled);
   const globeOpacity = useScene((s) => s.globeOpacity);
+  const phase = useScene((s) => s.phase);
 
   // Decide the rendering path once. Phones / low-power → 2D fallback.
   const [useFallback] = useState(() => isSmallScreen() || isLowMemory());
@@ -86,7 +88,6 @@ export default function App() {
     let lastEvent = 0;
     let lastStep = -1e9;
     let step = 0; // explicit current stop (not derived from the lagging scrollY)
-    let released = false;
     const dist = () =>
       Math.max(1, (JOURNEY_VH / 100) * window.innerHeight - window.innerHeight);
     const stepY = (s: number) => (N > 1 ? (0.76 * s) / (N - 1) : 0) * dist();
@@ -94,35 +95,27 @@ export default function App() {
     // globe's own damping animates the visual transition instead.
     const jump = (y: number) =>
       window.scrollTo({ top: y, behavior: 'instant' as ScrollBehavior });
-    const advance = (dir: number) => {
-      if (dir > 0) {
-        if (step < N - 1) jump(stepY(++step));
-        else {
-          released = true; // one more gesture past the last stop → leave
-          jump(dist());
-        }
-      } else if (step > 0) {
-        jump(stepY(--step));
-      }
-    };
     const gesture = (dir: number, e: Event) => {
-      if (released) {
-        // Scrolled back up into the journey → re-engage at the last stop.
-        if (window.scrollY < stepY(N - 1) - window.innerHeight * 0.2) {
-          released = false;
-          step = N - 1;
-          jump(stepY(step));
-          lastStep = Date.now();
-        }
-        return; // otherwise let the sections scroll natively
-      }
+      const { phase, setPhase } = useScene.getState();
+      if (phase === 'section') return; // section content scrolls natively
       e.preventDefault();
       const now = Date.now();
       const newGesture = now - lastEvent > GAP;
       lastEvent = now;
       if (!newGesture || now - lastStep < MIN_INTERVAL) return;
       lastStep = now;
-      advance(dir);
+      if (phase === 'journey') {
+        if (dir > 0) {
+          if (step < N - 1) jump(stepY(++step));
+          else setPhase('hub'); // one more gesture past the last stop → the hub
+        } else if (step > 0) {
+          jump(stepY(--step));
+        }
+      } else if (phase === 'hub' && dir < 0) {
+        setPhase('journey'); // scroll back up out of the hub into the journey
+        step = N - 1;
+        jump(stepY(step));
+      }
     };
     const onWheel = (e: WheelEvent) => {
       if (Math.abs(e.deltaY) < 1) return;
@@ -139,7 +132,8 @@ export default function App() {
       touchY = e.touches[0]?.clientY ?? 0;
     };
     const onTouchMove = (e: TouchEvent) => {
-      if (!released && e.cancelable) e.preventDefault(); // block native scroll while stepping
+      // Block native scroll while stepping; let it through inside a section.
+      if (useScene.getState().phase !== 'section' && e.cancelable) e.preventDefault();
     };
     const onTouchEnd = (e: TouchEvent) => {
       const dy = touchY - (e.changedTouches[0]?.clientY ?? touchY);
@@ -167,7 +161,7 @@ export default function App() {
     let lastY = 0;
     const onDown = (e: PointerEvent) => {
       if (e.pointerType === 'touch') return; // touch = stepping; mouse = spin
-      if (useScene.getState().globeOpacity < 0.5) return; // only during the journey
+      if (useScene.getState().phase !== 'journey') return; // only during the journey
       dragging = true;
       lastX = e.clientX;
       lastY = e.clientY;
@@ -195,6 +189,33 @@ export default function App() {
     };
   }, [useFallback]);
 
+  // Routing: /mercurio /markets /books ⇄ the open section. Deep-linking skips
+  // the intro straight to the section; back/forward drive the transitions.
+  useEffect(() => {
+    if (useFallback) return;
+    const deep = routeToSphere(window.location.pathname);
+    if (deep) useScene.getState().openSection(deep.id);
+
+    const unsub = useScene.subscribe((state, prev) => {
+      if (state.activeSection === prev.activeSection) return;
+      const route = state.activeSection
+        ? (SPHERES.find((x) => x.id === state.activeSection)?.route ?? '/')
+        : '/';
+      if (window.location.pathname !== route) {
+        window.history.pushState({}, '', route);
+      }
+    });
+    const onPop = () => {
+      const s = routeToSphere(window.location.pathname);
+      useScene.getState().openSection(s ? s.id : null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => {
+      unsub();
+      window.removeEventListener('popstate', onPop);
+    };
+  }, [useFallback]);
+
   if (useFallback) {
     return (
       <>
@@ -219,7 +240,12 @@ export default function App() {
           around and behind the planet. Fades/​lifts out into the sections. */}
       <div
         className="fixed inset-0 z-0"
-        style={{ opacity: 1, pointerEvents: 'none' }}
+        style={{
+          opacity: 1,
+          // Interactive in the hub/section so spheres + docked Earth can be
+          // hovered/clicked; inert during the journey so scroll/drag rule.
+          pointerEvents: phase === 'journey' ? 'none' : 'auto',
+        }}
         aria-hidden={globeOpacity < 0.05}
       >
         <Canvas
@@ -235,14 +261,13 @@ export default function App() {
       </div>
 
       <JourneyOverlay />
+      <HubOverlay />
 
-      {/* Scrolling content. The journey spacer is transparent so the globe shows
-          through; the sections that follow are opaque and scroll over it. */}
-      <div className="relative z-10">
+      {/* Transparent spacer that gives the journey its scroll range (the globe
+          shows through). pointer-events-none so it never intercepts hover/clicks
+          meant for the 3D spheres in the hub. */}
+      <div className="pointer-events-none relative z-10">
         <div style={{ height: `${JOURNEY_VH}vh` }} aria-hidden />
-        <main id="main-content" tabIndex={-1}>
-          <Sections />
-        </main>
       </div>
     </>
   );

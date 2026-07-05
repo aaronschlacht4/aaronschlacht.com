@@ -13,11 +13,12 @@ export default function JourneyOverlay() {
   const index = useScene((s) => focusedStopIndex(s.journeyT));
   const globeOpacity = useScene((s) => s.globeOpacity);
   const hasScrolled = useScene((s) => s.hasScrolled);
+  const phase = useScene((s) => s.phase);
 
   return (
     <div
-      className="pointer-events-none fixed inset-0 z-30"
-      style={{ opacity: globeOpacity }}
+      className="pointer-events-none fixed inset-0 z-30 transition-opacity duration-700"
+      style={{ opacity: phase === 'journey' ? globeOpacity : 0 }}
     >
       {/* Top bar: wordmark + clock */}
       <div className="flex items-start justify-between p-4 sm:p-6">

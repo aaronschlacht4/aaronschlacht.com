@@ -1,6 +1,14 @@
 import { useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { DoubleSide, AdditiveBlending, ShaderMaterial, Color } from 'three';
 import { GLOBE_RADIUS } from '../lib/geo';
+
+/**
+ * Global multiplier on the atmosphere's brightness, set each frame by GlobeScene
+ * to the Earth's current on-screen scale so the glow stays proportional as the
+ * planet shrinks into the hub (Bloom would otherwise keep a fixed-size halo).
+ */
+export const atmoGlow = { mul: 1 };
 
 /**
  * The atmosphere: a back-side sphere hugging the globe with a Fresnel falloff
@@ -29,12 +37,12 @@ export default function Atmosphere({
   const material = useMemo(() => {
     return new ShaderMaterial({
       transparent: true,
-      // DoubleSide + no depth test: the fresnel rim lands on BOTH the inner edge
-      // of the earth disc (front faces, glowing inward) and just outside it (back
-      // faces), reading as an atmosphere that glows on the globe's limb.
+      // DoubleSide so the fresnel rim lands on both the inner edge of the earth
+      // disc and just outside it. depthTest stays ON so objects in front of the
+      // globe (e.g. an orbiting sphere) correctly occlude the glow.
       side: DoubleSide,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       toneMapped: true,
       blending: AdditiveBlending,
       uniforms: {
@@ -44,6 +52,7 @@ export default function Atmosphere({
         uRimP: { value: rimPower },
         uHazeI: { value: hazeIntensity },
         uHazeP: { value: hazePower },
+        uMul: { value: 1 },
       },
       vertexShader: /* glsl */ `
         varying vec3 vNormal;
@@ -64,6 +73,7 @@ export default function Atmosphere({
         uniform float uRimP;
         uniform float uHazeI;
         uniform float uHazeP;
+        uniform float uMul;
         void main() {
           // 1 at the limb (normal ⟂ view), 0 head-on. Smootherstep-shaped so the
           // rim gradient has no hard edge or banding.
@@ -71,13 +81,17 @@ export default function Atmosphere({
           fres = fres * fres * (3.0 - 2.0 * fres); // smoothstep easing
           float rim  = pow(fres, uRimP)  * uRimI;  // bright cyan edge
           float haze = pow(fres, uHazeP) * uHazeI; // broad, soft blue falloff
-          vec3 color = uRim * rim + uHaze * haze;
-          float alpha = clamp(rim + haze, 0.0, 1.0);
+          vec3 color = (uRim * rim + uHaze * haze) * uMul;
+          float alpha = clamp(rim + haze, 0.0, 1.0) * uMul;
           gl_FragColor = vec4(color, alpha);
         }
       `,
     });
   }, [rimColor, hazeColor, rimIntensity, rimPower, hazeIntensity, hazePower]);
+
+  useFrame(() => {
+    material.uniforms.uMul.value = atmoGlow.mul;
+  });
 
   return (
     <mesh material={material} scale={scale}>

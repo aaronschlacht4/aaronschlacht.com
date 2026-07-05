@@ -32,13 +32,14 @@ const PHRASE_SIZE = 'clamp(2rem, 6.5vw, 6.5rem)';
 export default function StopHeadline() {
   const index = useScene((s) => focusedStopIndex(s.journeyT));
   const globeOpacity = useScene((s) => s.globeOpacity);
+  const phase = useScene((s) => s.phase);
   const stop = STOPS[index] ?? STOPS[0];
   const p = POS[index % POS.length];
 
   return (
     <div
-      className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
-      style={{ opacity: globeOpacity }}
+      className="pointer-events-none fixed inset-0 z-0 overflow-hidden transition-opacity duration-700"
+      style={{ opacity: phase === 'journey' ? globeOpacity : 0 }}
       aria-hidden
     >
       <AnimatePresence mode="wait">

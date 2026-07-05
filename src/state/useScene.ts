@@ -7,6 +7,14 @@ import { JOURNEY } from '../data/journey';
  * fading to 0 as the sections take over). The R3F scene and the 2D overlays both
  * read from here — one source of truth, updated once per scroll frame.
  */
+/**
+ * The big-picture phase of the homepage:
+ * - `journey`  the life-story globe (Phase 1).
+ * - `hub`      Earth shrinks to centre, project spheres orbit it (Phase 2/3).
+ * - `section`  a sphere is opened: it flies to centre, Earth docks top-left.
+ */
+export type Phase = 'journey' | 'hub' | 'section';
+
 type SceneState = {
   /** 0 at the first stop, 1 at the last stop. */
   journeyT: number;
@@ -15,16 +23,32 @@ type SceneState = {
   /** true once a user has scrolled at all (hides the scroll hint). */
   hasScrolled: boolean;
 
+  phase: Phase;
+  /** the open section's sphere id (route), or null in journey/hub. */
+  activeSection: string | null;
+  /** id of the sphere currently hovered in the hub, or null. */
+  hovered: string | null;
+
   setScroll: (journeyT: number, globeOpacity: number) => void;
   markScrolled: () => void;
+  setPhase: (phase: Phase) => void;
+  openSection: (id: string | null) => void;
+  setHovered: (id: string | null) => void;
 };
 
 export const useScene = create<SceneState>((set) => ({
   journeyT: 0,
   globeOpacity: 1,
   hasScrolled: false,
+  phase: 'journey',
+  activeSection: null,
+  hovered: null,
   setScroll: (journeyT, globeOpacity) => set({ journeyT, globeOpacity }),
   markScrolled: () => set({ hasScrolled: true }),
+  setPhase: (phase) => set({ phase }),
+  openSection: (id) =>
+    set({ activeSection: id, phase: id ? 'section' : 'hub' }),
+  setHovered: (hovered) => set({ hovered }),
 }));
 
 const N = JOURNEY.length;
