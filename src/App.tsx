@@ -70,6 +70,95 @@ export default function App() {
     };
   }, [useFallback, setScroll, markScrolled]);
 
+  // Gesture stepping: while the journey leads, ONE scroll gesture (however big)
+  // advances exactly ONE stop — separate gestures move separate stops. We drive
+  // the scroll position to each stop and let the damped globe play the transition;
+  // at the last stop one more gesture releases to the sections below.
+  useEffect(() => {
+    if (useFallback) return;
+    const N = JOURNEY.length;
+    // A "gesture" is a burst of wheel/touch events with gaps under GAP ms; only
+    // its FIRST event steps (and no sooner than MIN_INTERVAL after the last step),
+    // so one flick = one stop no matter how far it scrolls, and separate flicks
+    // move separate stops. Deterministic (timestamp-based), no racy timers.
+    const GAP = 220;
+    const MIN_INTERVAL = 480;
+    let lastEvent = 0;
+    let lastStep = -1e9;
+    let step = 0; // explicit current stop (not derived from the lagging scrollY)
+    let released = false;
+    const dist = () =>
+      Math.max(1, (JOURNEY_VH / 100) * window.innerHeight - window.innerHeight);
+    const stepY = (s: number) => (N > 1 ? (0.76 * s) / (N - 1) : 0) * dist();
+    // Instant jump — CSS scroll-behavior is smooth, which would lag scrollY; the
+    // globe's own damping animates the visual transition instead.
+    const jump = (y: number) =>
+      window.scrollTo({ top: y, behavior: 'instant' as ScrollBehavior });
+    const advance = (dir: number) => {
+      if (dir > 0) {
+        if (step < N - 1) jump(stepY(++step));
+        else {
+          released = true; // one more gesture past the last stop → leave
+          jump(dist());
+        }
+      } else if (step > 0) {
+        jump(stepY(--step));
+      }
+    };
+    const gesture = (dir: number, e: Event) => {
+      if (released) {
+        // Scrolled back up into the journey → re-engage at the last stop.
+        if (window.scrollY < stepY(N - 1) - window.innerHeight * 0.2) {
+          released = false;
+          step = N - 1;
+          jump(stepY(step));
+          lastStep = Date.now();
+        }
+        return; // otherwise let the sections scroll natively
+      }
+      e.preventDefault();
+      const now = Date.now();
+      const newGesture = now - lastEvent > GAP;
+      lastEvent = now;
+      if (!newGesture || now - lastStep < MIN_INTERVAL) return;
+      lastStep = now;
+      advance(dir);
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) < 1) return;
+      gesture(e.deltaY > 0 ? 1 : -1, e);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const down = ['ArrowDown', 'PageDown', ' ', 'Spacebar'].includes(e.key);
+      const up = ['ArrowUp', 'PageUp'].includes(e.key);
+      if (down || up) gesture(down ? 1 : -1, e);
+    };
+    // Touch: one swipe = one stop.
+    let touchY = 0;
+    const onTouchStart = (e: TouchEvent) => {
+      touchY = e.touches[0]?.clientY ?? 0;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!released && e.cancelable) e.preventDefault(); // block native scroll while stepping
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      const dy = touchY - (e.changedTouches[0]?.clientY ?? touchY);
+      if (Math.abs(dy) > 34) gesture(dy > 0 ? 1 : -1, e);
+    };
+    window.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd);
+    return () => {
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [useFallback]);
+
   // Drag anywhere over the globe (while the journey leads) to spin it around.
   useEffect(() => {
     if (useFallback) return;
@@ -77,6 +166,7 @@ export default function App() {
     let lastX = 0;
     let lastY = 0;
     const onDown = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') return; // touch = stepping; mouse = spin
       if (useScene.getState().globeOpacity < 0.5) return; // only during the journey
       dragging = true;
       lastX = e.clientX;
