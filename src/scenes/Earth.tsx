@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 import {
   Box3,
   Vector3,
@@ -11,8 +12,17 @@ import {
 } from 'three';
 import { GLOBE_RADIUS } from '../lib/geo';
 import { sunViewDirection } from '../lib/sun';
+import { useScene } from '../state/useScene';
 
 const MODEL_URL = '/models/earth_hq.glb';
+
+// The same golden hover glow the orbiting spheres use (see HubSphere), baked
+// into a fresnel emissive on Earth's own materials and driven by `earthGlow`.
+const EARTH_GOLD = new Color('#ffd27a');
+const GOLD_CHUNK = /* glsl */ `
+  float _egf = 1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition)));
+  _egf = pow(clamp(_egf, 0.0, 1.0), 3.2);
+  totalEmissiveRadiance += uEGold * _egf * uEGlow * 1.3;`;
 
 /**
  * Spin the model about its polar axis so the baked continents line up with the
@@ -35,6 +45,12 @@ const MODEL_TILT_Z = 0; // radians about Z
  */
 export default function Earth() {
   const { scene } = useGLTF(MODEL_URL); // plain glb (Draco decoded at build)
+  // 0..1 golden-glow strength, damped toward 1 while Earth is hovered in the hub.
+  const glow = useMemo(() => ({ value: 0 }), []);
+  useFrame((_, dt) => {
+    const to = useScene.getState().hovered === 'earth' ? 1 : 0;
+    glow.value += (to - glow.value) * (1 - Math.exp(-9 * Math.min(dt, 0.05)));
+  });
   const model = useMemo(() => {
     const m = scene.clone(true);
     m.traverse((o) => {
@@ -86,10 +102,12 @@ export default function Earth() {
       if (isSurface) {
         std.onBeforeCompile = (shader) => {
           shader.uniforms.uSunView = { value: sunViewDirection };
+          shader.uniforms.uEGold = { value: EARTH_GOLD };
+          shader.uniforms.uEGlow = glow;
           shader.fragmentShader = shader.fragmentShader
             .replace(
               '#include <common>',
-              '#include <common>\nuniform vec3 uSunView;',
+              '#include <common>\nuniform vec3 uSunView;\nuniform vec3 uEGold;\nuniform float uEGlow;',
             )
             .replace(
               '#include <emissivemap_fragment>',
@@ -101,14 +119,30 @@ export default function Earth() {
                // Warm dusk/atmospheric band along the terminator for realism.
                float _dusk = smoothstep(-0.16, 0.02, _day) *
                              (1.0 - smoothstep(0.02, 0.34, _day));
-               totalEmissiveRadiance += vec3(1.0, 0.42, 0.16) * _dusk * 0.22;`,
+               totalEmissiveRadiance += vec3(1.0, 0.42, 0.16) * _dusk * 0.22;
+               ${GOLD_CHUNK}`,
+            );
+        };
+      } else {
+        // Clouds / other surfaces: just the golden hover glow.
+        std.onBeforeCompile = (shader) => {
+          shader.uniforms.uEGold = { value: EARTH_GOLD };
+          shader.uniforms.uEGlow = glow;
+          shader.fragmentShader = shader.fragmentShader
+            .replace(
+              '#include <common>',
+              '#include <common>\nuniform vec3 uEGold;\nuniform float uEGlow;',
+            )
+            .replace(
+              '#include <emissivemap_fragment>',
+              `#include <emissivemap_fragment>${GOLD_CHUNK}`,
             );
         };
       }
       mesh.material = std;
     });
     return m;
-  }, [scene]);
+  }, [scene, glow]);
 
   // Scale/centre on the *surface sphere* (the node named "Earth"). We measure its
   // bounding SPHERE in the model's own transformed space and scale so its radius

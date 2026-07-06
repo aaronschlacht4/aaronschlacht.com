@@ -154,7 +154,9 @@ export default function GlobeScene() {
         group.quaternion.premultiply(tmpUserQuat);
       }
     } else {
-      hubSpin.current += delta * 0.06;
+      // Pause the hub spin while Earth is hovered (matches the orbiting spheres).
+      const paused = useScene.getState().hovered === 'earth';
+      if (!paused) hubSpin.current += delta * 0.06;
       group.rotation.set(0.28, hubSpin.current, 0);
     }
 
