@@ -37,6 +37,7 @@ export default function GlobeScene() {
   const sectionAnim = useRef(0);
   const hubSpin = useRef(0);
   const lightRef = useRef<DirectionalLight>(null);
+  const hubFillRef = useRef<DirectionalLight>(null);
   const camera = useThree((s) => s.camera);
   // Bloom only on capable devices — it lifts the city lights, arcs and sunlit
   // limb without touching the daytime surface (which stays below threshold).
@@ -91,6 +92,11 @@ export default function GlobeScene() {
       // Keep the atmosphere glow proportional to the shrinking Earth so Bloom
       // doesn't leave an oversized halo around the tiny hub planet.
       atmoGlow.mul = Math.min(1, earthScale / 0.85);
+
+      // Steady front-left fill for the hub/section spheres + docked emblem, so
+      // they read well regardless of where the rotating real-time sun points.
+      // Faded out during the journey so the day/night globe is untouched.
+      if (hubFillRef.current) hubFillRef.current.intensity = h * 1.7;
     }
 
     // 1) Orientation. During the journey the globe faces the scrolled-to stop;
@@ -137,6 +143,14 @@ export default function GlobeScene() {
       <directionalLight ref={lightRef} intensity={2.9} color="#fff4e6" />
       {/* Soft fixed fill so the orbiting spheres read from every angle. */}
       <directionalLight position={[2.5, 3, 4]} intensity={0.55} color="#bcd2ff" />
+      {/* Front-left key for the hub spheres + docked emblem (ramped in useFrame
+          so it only lights the hub/section, not the journey globe). */}
+      <directionalLight
+        ref={hubFillRef}
+        position={[-2.5, 2, 4.5]}
+        intensity={0}
+        color="#eef3ff"
+      />
       {/* IBL for the crystal ball's reflections/refraction (no visible bg). */}
       <Environment map={env} />
 

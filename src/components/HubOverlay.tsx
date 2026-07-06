@@ -82,7 +82,7 @@ export default function HubOverlay() {
             variants={container}
             initial="hidden"
             animate="show"
-            className="relative z-30 mx-auto max-w-5xl px-6 pb-32 pt-[25vh] sm:px-10 sm:pt-[27vh]"
+            className="relative z-30 mx-auto max-w-5xl px-6 pb-32 pt-[28vh] sm:px-10 sm:pt-[30vh]"
           >
             {/* ── Hero ───────────────────────────────────────────────── */}
             <motion.div
