@@ -51,15 +51,19 @@ function GltfSphere({
       const mesh = o as Mesh;
       if (!mesh.isMesh) return;
       const mat = (mesh.material as MeshPhysicalMaterial).clone();
+      // Both planets are solid, opaque objects: force them to write depth so the
+      // transparent dotted orbit rings are correctly occluded when a sphere is in
+      // front (glb materials sometimes ship transparent, which skips depth).
+      mat.transparent = false;
+      mat.opacity = 1;
+      mat.depthWrite = true;
+      mat.depthTest = true;
       if (polish) {
         mat.roughness = Math.min(mat.roughness ?? 1, 0.12);
         mat.metalness = 0;
         mat.envMapIntensity = 1.5;
         mat.clearcoat = 1;
         mat.clearcoatRoughness = 0.06;
-        mat.transparent = false; // a pool ball is solid, not glass
-        mat.opacity = 1;
-        mat.depthWrite = true;
       }
       addGoldGlow(mat, glow);
       mesh.material = mat;
