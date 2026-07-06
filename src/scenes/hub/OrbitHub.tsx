@@ -17,12 +17,15 @@ import HubSphere from './HubSphere';
 const BASE_PERIOD = 46; // seconds at the reference radius (ambient, slow)
 const REF_R = 1.25;
 
-// Where the docked emblem sits, as a top-left screen point (NDC) and a fixed
+// Where the docked emblem sits, as an upper-left screen point (NDC) and a fixed
 // distance from the camera. Projecting through NDC keeps it pinned to the same
-// corner and the same on-screen size at any aspect ratio or camera pitch.
-const DOCK_NDC_X = -0.72;
-const DOCK_NDC_Y = 0.62;
+// spot and size at any aspect ratio or camera pitch. The section phase also
+// narrows the camera FOV (see GlobeScene) which flattens perspective so this
+// corner sphere reads as a clean circle instead of an off-axis egg.
+const DOCK_NDC_X = -0.64;
+const DOCK_NDC_Y = 0.56;
 const DOCK_DIST = 3.0;
+const BASE_FOV = 42;
 const _ndc = new Vector3();
 const _dir = new Vector3();
 const _dock = new Vector3();
@@ -127,11 +130,17 @@ export default function OrbitHub() {
       let scale = h * hoverS.current[i];
 
       if (activeSection === def.id) {
-        // dock to the top-left as the section's rotating emblem
+        // dock to the top-left as the section's rotating emblem. Compensate the
+        // docked size for the narrowed section FOV so it stays visually constant
+        // (narrower FOV zooms in → shrink world scale by tan(fov/2) ratio).
+        const dockScale =
+          0.9 *
+          (Math.tan((cam.fov * Math.PI) / 360) /
+            Math.tan((BASE_FOV * Math.PI) / 360));
         x = x * (1 - sec) + dockX * sec;
         y = y * (1 - sec) + dockY * sec;
         z = z * (1 - sec) + dockZ * sec;
-        scale = scale * (1 - sec) + 0.9 * sec;
+        scale = scale * (1 - sec) + dockScale * sec;
       } else if (activeSection) {
         scale *= 1 - sec;
       }

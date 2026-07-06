@@ -3,7 +3,14 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Stars, Environment } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { isLowMemory } from '../lib/env';
-import { Group, Quaternion, Euler, type DirectionalLight } from 'three';
+import {
+  Group,
+  Quaternion,
+  Euler,
+  type DirectionalLight,
+  type AmbientLight,
+  type PerspectiveCamera,
+} from 'three';
 import { makeSpaceEnv } from './hub/spaceEnv';
 import Earth from './Earth';
 import Atmosphere, { atmoGlow } from './Atmosphere';
@@ -38,6 +45,7 @@ export default function GlobeScene() {
   const hubSpin = useRef(0);
   const lightRef = useRef<DirectionalLight>(null);
   const hubFillRef = useRef<DirectionalLight>(null);
+  const hubAmbientRef = useRef<AmbientLight>(null);
   const camera = useThree((s) => s.camera);
   // Bloom only on capable devices — it lifts the city lights, arcs and sunlit
   // limb without touching the daytime surface (which stays below threshold).
@@ -93,10 +101,23 @@ export default function GlobeScene() {
       // doesn't leave an oversized halo around the tiny hub planet.
       atmoGlow.mul = Math.min(1, earthScale / 0.85);
 
-      // Steady front-left fill for the hub/section spheres + docked emblem, so
-      // they read well regardless of where the rotating real-time sun points.
-      // Faded out during the journey so the day/night globe is untouched.
-      if (hubFillRef.current) hubFillRef.current.intensity = h * 1.7;
+      // Even, flattering light for the hub/section spheres + docked emblem so
+      // they read as full spheres regardless of where the rotating real-time
+      // sun points (no harsh day/night terminator on a UI emblem). A high
+      // ambient floor lifts the shadow side; a gentle camera-side key adds
+      // form. Both fade out during the journey so the globe is untouched.
+      if (hubAmbientRef.current) hubAmbientRef.current.intensity = h * 0.62;
+      if (hubFillRef.current) hubFillRef.current.intensity = h * 0.9;
+
+      // Narrow the FOV as a section opens. Only the docked emblem is on screen
+      // then, so flattening perspective makes that corner sphere render as a
+      // clean circle rather than an off-axis egg. Journey/hub keep the wide 42°.
+      const cam = camera as PerspectiveCamera;
+      const targetFov = 42 - 14 * s;
+      if (Math.abs(cam.fov - targetFov) > 0.01) {
+        cam.fov = targetFov;
+        cam.updateProjectionMatrix();
+      }
     }
 
     // 1) Orientation. During the journey the globe faces the scrolled-to stop;
@@ -143,11 +164,14 @@ export default function GlobeScene() {
       <directionalLight ref={lightRef} intensity={2.9} color="#fff4e6" />
       {/* Soft fixed fill so the orbiting spheres read from every angle. */}
       <directionalLight position={[2.5, 3, 4]} intensity={0.55} color="#bcd2ff" />
-      {/* Front-left key for the hub spheres + docked emblem (ramped in useFrame
-          so it only lights the hub/section, not the journey globe). */}
+      {/* Even lighting for the hub spheres + docked emblem (both ramped in
+          useFrame so they only affect the hub/section, not the journey globe):
+          an ambient floor to kill the day/night terminator, plus a soft
+          camera-side key from the upper-right for gentle form. */}
+      <ambientLight ref={hubAmbientRef} intensity={0} color="#eaf1ff" />
       <directionalLight
         ref={hubFillRef}
-        position={[-2.5, 2, 4.5]}
+        position={[1.5, 2, 5]}
         intensity={0}
         color="#eef3ff"
       />
