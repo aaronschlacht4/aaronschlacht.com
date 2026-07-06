@@ -82,7 +82,7 @@ export default function HubOverlay() {
             variants={container}
             initial="hidden"
             animate="show"
-            className="relative z-30 mx-auto max-w-5xl px-6 pb-32 pt-[32vh] sm:px-10 sm:pt-[34vh]"
+            className="relative z-30 mx-auto max-w-5xl px-6 pb-32 pt-[25vh] sm:px-10 sm:pt-[27vh]"
           >
             {/* ── Hero ───────────────────────────────────────────────── */}
             <motion.div
@@ -112,12 +112,9 @@ export default function HubOverlay() {
               {active.blurb}
             </motion.p>
 
-            {/* CTA + meta chips */}
-            <motion.div
-              variants={item}
-              className="mt-8 flex flex-wrap items-center gap-3"
-            >
-              {active.link && (
+            {/* CTA */}
+            {active.link && (
+              <motion.div variants={item} className="mt-9">
                 <a
                   href={active.link.href}
                   className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-[#05070d] shadow-lg transition hover:brightness-110"
@@ -129,36 +126,43 @@ export default function HubOverlay() {
                   {active.link.label}
                   <span aria-hidden>→</span>
                 </a>
-              )}
+              </motion.div>
+            )}
+
+            {/* Meta as a clean stat strip: small label over value, divided. */}
+            <motion.dl
+              variants={item}
+              className="mt-11 flex flex-wrap gap-x-12 gap-y-6 border-t border-white/10 pt-7"
+            >
               {active.meta.map((m) => (
-                <span
-                  key={m.k}
-                  className="rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs text-ink-dim backdrop-blur-md"
-                >
-                  <span className="text-ink-dim/60">{m.k}</span>
-                  <span className="mx-1.5 text-white/20">·</span>
-                  <span className="text-ink">{m.v}</span>
-                </span>
+                <div key={m.k}>
+                  <dt className="text-[11px] font-medium uppercase tracking-[0.18em] text-ink-dim/70">
+                    {m.k}
+                  </dt>
+                  <dd className="mt-1.5 text-[15px] font-medium text-ink">
+                    {m.v}
+                  </dd>
+                </div>
               ))}
-            </motion.div>
+            </motion.dl>
 
             {/* ── Content grid ───────────────────────────────────────── */}
-            <div className="mt-16 grid gap-5 md:grid-cols-5">
+            <div className="mt-16 grid items-start gap-5 md:grid-cols-5">
               <motion.section
                 variants={item}
                 className="rounded-3xl border border-white/10 bg-white/[0.03] p-8 backdrop-blur-md md:col-span-3"
               >
-                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-ink-dim">
+                <h2 className="text-xs font-semibold uppercase tracking-[0.22em] text-ink-dim">
                   Overview
                 </h2>
-                <p className="mt-4 leading-relaxed text-ink/85">
+                <p className="mt-5 text-[17px] leading-relaxed text-ink/85">
                   {/* TODO: real overview copy. */}
-                  {active.blurb} There’s more to write here — this panel is ready
-                  for the full story, screenshots, and links whenever you are.
+                  This is where the full story goes — the why behind it, how it
+                  was built, and what came of it.
                 </p>
                 <p className="mt-4 leading-relaxed text-ink-dim">
-                  Drop in sections, media, or a case-study writeup; the layout
-                  scrolls as a normal page beneath the floating emblem.
+                  Add sections, media, or a case-study writeup here; the page
+                  scrolls normally beneath the floating emblem.
                 </p>
               </motion.section>
 
@@ -166,20 +170,20 @@ export default function HubOverlay() {
                 variants={item}
                 className="rounded-3xl border border-white/10 bg-white/[0.03] p-8 backdrop-blur-md md:col-span-2"
               >
-                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-ink-dim">
+                <h2 className="text-xs font-semibold uppercase tracking-[0.22em] text-ink-dim">
                   Highlights
                 </h2>
-                <ul className="mt-4 space-y-3.5">
+                <ul className="mt-5 space-y-4">
                   {active.highlights.map((h) => (
                     <li key={h} className="flex items-start gap-3">
                       <span
-                        className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full"
+                        className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full"
                         style={{
                           background: active.color,
                           boxShadow: `0 0 10px ${active.color}`,
                         }}
                       />
-                      <span className="text-sm leading-relaxed text-ink/85">
+                      <span className="text-[15px] leading-relaxed text-ink/85">
                         {h}
                       </span>
                     </li>
