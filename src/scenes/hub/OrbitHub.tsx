@@ -17,6 +17,16 @@ import HubSphere from './HubSphere';
 const BASE_PERIOD = 46; // seconds at the reference radius (ambient, slow)
 const REF_R = 1.25;
 
+// Where the docked emblem sits, as a top-left screen point (NDC) and a fixed
+// distance from the camera. Projecting through NDC keeps it pinned to the same
+// corner and the same on-screen size at any aspect ratio or camera pitch.
+const DOCK_NDC_X = -0.72;
+const DOCK_NDC_Y = 0.62;
+const DOCK_DIST = 3.0;
+const _ndc = new Vector3();
+const _dir = new Vector3();
+const _dock = new Vector3();
+
 const damp = (cur: number, to: number, rate: number, dt: number) =>
   cur + (to - cur) * (1 - Math.exp(-rate * Math.min(dt, 0.05)));
 
@@ -87,16 +97,17 @@ export default function OrbitHub() {
     const h = easeInOut(hub.current);
     const sec = easeInOut(section.current);
 
-    // Where the docked emblem lands, derived from the camera each frame so it
-    // stays pinned to the upper-left corner at any aspect ratio (a fixed world
-    // point would drift toward centre on wider viewports). Target NDC ≈ top-left.
+    // Where the docked emblem lands: the world point on the ray through the
+    // top-left NDC target, at a fixed distance from the camera. unproject()
+    // handles the camera's pitch and aspect exactly, so the emblem sits fully
+    // in the upper-left corner (with margin) on any viewport.
     const cam = state.camera as PerspectiveCamera;
-    const dockZ = 0.4;
-    const depth = cam.position.z - dockZ;
-    const halfH = Math.tan(((cam.fov ?? 42) * Math.PI) / 360) * depth;
-    const halfW = halfH * (cam.aspect ?? 1);
-    const dockX = -0.78 * halfW;
-    const dockY = 0.5 * halfH + cam.position.y;
+    _ndc.set(DOCK_NDC_X, DOCK_NDC_Y, 0.5).unproject(cam);
+    _dir.copy(_ndc).sub(cam.position).normalize();
+    _dock.copy(cam.position).addScaledVector(_dir, DOCK_DIST);
+    const dockX = _dock.x;
+    const dockY = _dock.y;
+    const dockZ = _dock.z;
 
     for (let i = 0; i < N; i++) {
       const g = refs.current[i];
@@ -120,7 +131,7 @@ export default function OrbitHub() {
         x = x * (1 - sec) + dockX * sec;
         y = y * (1 - sec) + dockY * sec;
         z = z * (1 - sec) + dockZ * sec;
-        scale = scale * (1 - sec) + 1.0 * sec;
+        scale = scale * (1 - sec) + 0.9 * sec;
       } else if (activeSection) {
         scale *= 1 - sec;
       }
