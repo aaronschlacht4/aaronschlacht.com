@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Stars, Environment } from '@react-three/drei';
+import { Stars, Environment, Html } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { isLowMemory } from '../lib/env';
 import {
@@ -18,7 +18,14 @@ import JourneyArcs from './JourneyArcs';
 import OrbitHub from './hub/OrbitHub';
 import { JOURNEY } from '../data/journey';
 import { useScene, pathPosition, journeyAnim, userRotate } from '../state/useScene';
-import { latLngToVector3, easeInOut, easeOutCubic, clamp01, lerp } from '../lib/geo';
+import {
+  latLngToVector3,
+  easeInOut,
+  easeOutCubic,
+  clamp01,
+  lerp,
+  GLOBE_RADIUS,
+} from '../lib/geo';
 import {
   updateSunDirection,
   localSunDirection,
@@ -52,6 +59,9 @@ export default function GlobeScene() {
   const [bloom] = useState(() => !isLowMemory());
   // Space environment for reflections/refraction on the crystal ball.
   const env = useMemo(makeSpaceEnv, []);
+  // Earth acts as the "enter the journey" button while in the hub.
+  const earthHover = useScene((s) => s.hovered === 'earth');
+  const inHub = useScene((s) => s.phase === 'hub');
 
   // Direction from globe centre toward the camera — the spot a stop rotates to.
   const targetDir = useMemo(
@@ -92,9 +102,12 @@ export default function GlobeScene() {
       const s = easeInOut(sectionAnim.current);
 
       // journey: hero. hub: shrink to centre. section: fly up and away (the
-      // opened sphere becomes the top-left emblem, so Earth clears out).
-      const heroScale = 0.25 + 0.75 * introE;
-      const earthScale = lerp(heroScale, lerp(0.4, 0.02, s), h);
+      // opened sphere becomes the top-left emblem, so Earth clears out). The
+      // entrance factor flies Earth in from small on first load (into the hub).
+      const hubScale = lerp(0.4, 0.02, s);
+      const target = lerp(1, hubScale, h);
+      const entrance = 0.4 + 0.6 * introE;
+      const earthScale = target * entrance;
       outer.scale.setScalar(earthScale);
       outer.position.set(0, h * 3.6 * s, (1 - h) * -3.2 * (1 - introE));
       // Keep the atmosphere glow proportional to the shrinking Earth so Bloom
@@ -204,6 +217,56 @@ export default function GlobeScene() {
           hazeIntensity={0.36}
           hazePower={2.6}
         />
+
+        {/* Earth is the "enter the journey" button in the hub. Invisible hit
+            sphere hugging the globe; scales/moves with it via the outer group. */}
+        <mesh
+          onPointerOver={(e) => {
+            if (useScene.getState().phase !== 'hub') return;
+            e.stopPropagation();
+            useScene.getState().setHovered('earth');
+          }}
+          onPointerOut={() => {
+            if (useScene.getState().hovered === 'earth')
+              useScene.getState().setHovered(null);
+          }}
+          onPointerDown={(e) => {
+            if (useScene.getState().phase !== 'hub') return;
+            e.stopPropagation();
+            useScene.getState().setHovered(null);
+            useScene.getState().setPhase('journey');
+          }}
+        >
+          <sphereGeometry args={[GLOBE_RADIUS * 1.12, 16, 16]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+
+        {earthHover && inHub && (
+          <Html
+            position={[0, GLOBE_RADIUS * 1.55, 0]}
+            center
+            style={{ pointerEvents: 'none' }}
+          >
+            <div
+              style={{
+                transform: 'translateY(-100%)',
+                whiteSpace: 'nowrap',
+                padding: '6px 12px',
+                borderRadius: 999,
+                background: 'rgba(10,14,24,0.6)',
+                border: '1px solid rgba(122,178,255,0.35)',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 8px 22px rgba(0,0,0,0.4)',
+                fontFamily: 'var(--font-display, sans-serif)',
+                fontWeight: 700,
+                fontSize: 12,
+                color: '#eaf2ff',
+              }}
+            >
+              Explore my journey →
+            </div>
+          </Html>
+        )}
       </group>
 
       {/* Project spheres orbiting Earth — fly in as it shrinks to the hub. */}

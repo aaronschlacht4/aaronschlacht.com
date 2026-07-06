@@ -9,8 +9,8 @@ import { JOURNEY } from '../data/journey';
  */
 /**
  * The big-picture phase of the homepage:
- * - `journey`  the life-story globe (Phase 1).
- * - `hub`      Earth shrinks to centre, project spheres orbit it (Phase 2/3).
+ * - `hub`      the landing: project spheres orbit a centred Earth (Phase 2/3).
+ * - `journey`  the life-story globe, entered by clicking the Earth (Phase 1).
  * - `section`  a sphere is opened: it flies to centre, Earth docks top-left.
  */
 export type Phase = 'journey' | 'hub' | 'section';
@@ -40,7 +40,7 @@ export const useScene = create<SceneState>((set) => ({
   journeyT: 0,
   globeOpacity: 1,
   hasScrolled: false,
-  phase: 'journey',
+  phase: 'hub', // land straight in the orbital hub; click Earth for the journey
   activeSection: null,
   hovered: null,
   setScroll: (journeyT, globeOpacity) => set({ journeyT, globeOpacity }),

@@ -107,15 +107,14 @@ export default function App() {
       if (phase === 'journey') {
         if (dir > 0) {
           if (step < N - 1) jump(stepY(++step));
-          else setPhase('hub'); // one more gesture past the last stop → the hub
-        } else if (step > 0) {
-          jump(stepY(--step));
+          else setPhase('hub'); // past the last stop → back to the orbit
+        } else {
+          if (step > 0) jump(stepY(--step));
+          else setPhase('hub'); // up past the first stop → back to the orbit
         }
-      } else if (phase === 'hub' && dir < 0) {
-        setPhase('journey'); // scroll back up out of the hub into the journey
-        step = N - 1;
-        jump(stepY(step));
       }
+      // In the hub, scroll is inert (journey is entered by clicking Earth); the
+      // preventDefault above still swallows it so the page never scrolls away.
     };
     const onWheel = (e: WheelEvent) => {
       if (Math.abs(e.deltaY) < 1) return;
@@ -139,12 +138,29 @@ export default function App() {
       const dy = touchY - (e.changedTouches[0]?.clientY ?? touchY);
       if (Math.abs(dy) > 34) gesture(dy > 0 ? 1 : -1, e);
     };
+    // Reset the journey's step + scroll when entering it (from the Earth click)
+    // or leaving it, so it always begins at the first stop and the hub rests.
+    const unsubPhase = useScene.subscribe((s, p) => {
+      if (s.phase === p.phase) return;
+      if (s.phase === 'journey' && p.phase !== 'journey') {
+        step = 0;
+        lastStep = 0;
+        lastEvent = 0;
+        userRotate.x = 0;
+        userRotate.y = 0;
+        jump(0);
+      } else if (s.phase !== 'journey' && p.phase === 'journey') {
+        step = 0;
+        jump(0);
+      }
+    });
     window.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('keydown', onKey);
     window.addEventListener('touchstart', onTouchStart, { passive: true });
     window.addEventListener('touchmove', onTouchMove, { passive: false });
     window.addEventListener('touchend', onTouchEnd);
     return () => {
+      unsubPhase();
       window.removeEventListener('wheel', onWheel);
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('touchstart', onTouchStart);
