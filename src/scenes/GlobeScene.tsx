@@ -32,6 +32,13 @@ import {
   worldSunDirection,
   sunViewDirection,
 } from '../lib/sun';
+import {
+  JOURNEY_CAM_Z,
+  HUB_CAM_Z,
+  JOURNEY_FOV,
+  HUB_FOV,
+  SECTION_EXTRA_NARROW,
+} from '../lib/dock';
 
 const tmpQuat = new Quaternion();
 const tmpUserQuat = new Quaternion();
@@ -122,11 +129,21 @@ export default function GlobeScene() {
       if (hubAmbientRef.current) hubAmbientRef.current.intensity = h * 0.62;
       if (hubFillRef.current) hubFillRef.current.intensity = h * 0.9;
 
-      // Narrow the FOV as a section opens. Only the docked emblem is on screen
-      // then, so flattening perspective makes that corner sphere render as a
-      // clean circle rather than an off-axis egg. Journey/hub keep the wide 42°.
+      // Pull the camera back and narrow the FOV for the hub/section (journey
+      // keeps the original wide 42° close-up). A sphere off to the side of a
+      // wide-angle frame projects as an egg, not a circle — worse the closer
+      // and more off-axis it sits — which is visible on the orbiting spheres
+      // at the edges of the hub. Moving the camera back while narrowing the
+      // FOV to match (the same "portrait lens" trick used for the docked
+      // emblem below) keeps Earth's on-screen size the same but shrinks that
+      // off-axis angle, so the orbiting spheres read as circles too. Docking
+      // narrows further still, on top of the hub's pulled-back base.
       const cam = camera as PerspectiveCamera;
-      const targetFov = 42 - 14 * s;
+      const targetCamZ = lerp(JOURNEY_CAM_Z, HUB_CAM_Z, h);
+      if (Math.abs(cam.position.z - targetCamZ) > 0.001) {
+        cam.position.z = targetCamZ;
+      }
+      const targetFov = lerp(JOURNEY_FOV, HUB_FOV, h) - SECTION_EXTRA_NARROW * s;
       if (Math.abs(cam.fov - targetFov) > 0.01) {
         cam.fov = targetFov;
         cam.updateProjectionMatrix();

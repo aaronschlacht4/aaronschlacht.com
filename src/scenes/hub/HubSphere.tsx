@@ -7,16 +7,35 @@ import {
   MeshPhysicalMaterial,
   Box3,
   Vector3,
+  Vector2,
+  Matrix3,
+  Matrix4,
+  Quaternion,
   Group,
   type Mesh,
 } from 'three';
 import type { SphereDef } from '../../data/spheres';
 
+/** A sphere's live billboard-correction uniforms (see addBillboardCorrection),
+ * recomputed every frame in HubSphere from the group's actual world position. */
+type Billboard = { rot: { value: Matrix3 }; ndc: { value: Vector2 } };
+
 const R = 0.2; // base sphere radius (world units)
+
+// Scratch objects for the billboard-correction math in HubSphere's useFrame
+// (module-level so nothing allocates per sphere per frame).
+const _bcWorldPos = new Vector3();
+const _bcViewPos = new Vector3();
+const _bcDir = new Vector3();
+const _bcNdc = new Vector3();
+const _bcQuat = new Quaternion();
+const _bcMat4 = new Matrix4();
+const _bcForward = new Vector3(0, 0, -1);
 
 const MODEL_URL: Record<string, string> = {
   mercury: '/models/mercury_mr.glb',
   crystal: '/models/pool_ball_mr.glb', // the eight ball
+  paper: '/models/crumpled_paper.glb',
 };
 
 /**
@@ -31,10 +50,12 @@ function GltfSphere({
   url,
   polish,
   glow,
+  billboard,
 }: {
   url: string;
   polish?: boolean;
   glow: { value: number };
+  billboard: Billboard;
 }) {
   const { scene } = useGLTF(url);
   const obj = useMemo(() => {
@@ -66,10 +87,11 @@ function GltfSphere({
         mat.clearcoatRoughness = 0.06;
       }
       addGoldGlow(mat, glow);
+      addBillboardCorrection(mat, billboard);
       mesh.material = mat;
     });
     return m;
-  }, [scene, polish, glow]);
+  }, [scene, polish, glow, billboard]);
   return <primitive object={obj} />;
 }
 
@@ -108,6 +130,62 @@ function addGoldGlow(
 }
 
 /**
+ * Keeps a sphere reading as a true circle no matter where it sits on screen.
+ *
+ * A perspective camera only projects a sphere as a circle when it's centred
+ * on the view axis — off to the side (as these orbiting spheres constantly
+ * are) it projects as a slight ellipse, worse the closer and more off-axis it
+ * gets (the pulled-back hub camera in GlobeScene already shrinks this a lot,
+ * but can't remove it: it's inherent to a single shared perspective camera).
+ *
+ * The fix: re-render the sphere as if the camera were looking straight at it
+ * — which any sphere always projects as a circle under — then shift the
+ * *whole* result sideways in clip space (a per-vertex offset scaled by each
+ * vertex's own `w`, so after the perspective divide it's a constant screen
+ * offset regardless of depth) back to the position it actually belongs at.
+ * `uBCRot` is that "look straight at it" rotation, expressed directly in view
+ * space so it can apply straight to the standard mvPosition with no matrix
+ * juggling; `uBCNdc` is the true on-screen position to shift back to (a
+ * point placed via unproject(ndc) always reprojects to that same ndc, so —
+ * as it happens — this needs no camera math either; see HubSphere's useFrame).
+ * Both are mutated in place every frame, not reassigned, so this compile-time
+ * patch only runs once per material.
+ *
+ * Only gl_Position is touched — normals and the true (uncorrected)
+ * mvPosition-derived vViewPosition, set right after this chunk runs, are
+ * left alone, so lighting/fresnel/reflections stay physically accurate to
+ * the sphere's real position; only its silhouette is corrected.
+ */
+function addBillboardCorrection(
+  mat: { onBeforeCompile?: (s: any) => void; needsUpdate: boolean },
+  billboard: Billboard,
+) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader: any) => {
+    prev?.(shader);
+    shader.uniforms.uBCRot = billboard.rot; // shared refs, mutated each frame
+    shader.uniforms.uBCNdc = billboard.ndc;
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nuniform mat3 uBCRot;\nuniform vec2 uBCNdc;',
+      )
+      .replace(
+        '#include <project_vertex>',
+        `vec4 mvPosition = vec4( transformed, 1.0 );
+#ifdef USE_INSTANCING
+	mvPosition = instanceMatrix * mvPosition;
+#endif
+mvPosition = modelViewMatrix * mvPosition;
+vec3 _bcPos = uBCRot * mvPosition.xyz;
+gl_Position = projectionMatrix * vec4(_bcPos, mvPosition.w);
+gl_Position.xy += uBCNdc * gl_Position.w;`,
+      );
+  };
+  mat.needsUpdate = true;
+}
+
+/**
  * One orbiting section sphere. `spin` self-rotation is applied here; the orbit
  * position + hover scaling are driven by the parent OrbitHub. Pointer events
  * bubble up via the passed handlers.
@@ -123,13 +201,21 @@ export default function HubSphere({
   onOut: (id: string) => void;
   onClick: (id: string | null) => void;
 }) {
+  const groupRef = useRef<Group>(null);
   const spinRef = useRef<Group>(null);
   const hovered = useScene((s) => s.hovered);
   const activeSection = useScene((s) => s.activeSection);
   // Shared 0..1 strength for the golden inner glow, damped so it eases in/out.
   const glow = useMemo(() => ({ value: 0 }), []);
+  // Shared billboard-correction uniforms (see addBillboardCorrection) — kept
+  // as one persistent object per sphere and mutated in place every frame,
+  // never reassigned, so the material's onBeforeCompile patch runs once.
+  const billboard = useMemo<Billboard>(
+    () => ({ rot: { value: new Matrix3() }, ndc: { value: new Vector2() } }),
+    [],
+  );
 
-  useFrame((_, delta) => {
+  useFrame(({ camera }, delta) => {
     // Keep spinning except while hovered in the hub; the docked section sphere
     // (activeSection) keeps rotating on the top-left.
     const paused = hovered === def.id && activeSection === null;
@@ -137,10 +223,26 @@ export default function HubSphere({
     // Golden inner glow only while hovered in the hub (not on the docked emblem).
     const to = hovered === def.id && !activeSection ? 1 : 0;
     glow.value += (to - glow.value) * (1 - Math.exp(-9 * Math.min(delta, 0.05)));
+
+    // Billboard correction: rotation (in view space) that maps "direction
+    // from camera to this sphere" onto "straight ahead", plus the sphere's
+    // true screen position to shift back to. See addBillboardCorrection.
+    if (groupRef.current) {
+      groupRef.current.getWorldPosition(_bcWorldPos);
+      _bcViewPos.copy(_bcWorldPos).applyMatrix4(camera.matrixWorldInverse);
+      if (_bcViewPos.lengthSq() > 1e-8) {
+        _bcDir.copy(_bcViewPos).normalize();
+        _bcQuat.setFromUnitVectors(_bcDir, _bcForward);
+        billboard.rot.value.setFromMatrix4(_bcMat4.makeRotationFromQuaternion(_bcQuat));
+      }
+      _bcNdc.copy(_bcWorldPos).project(camera);
+      billboard.ndc.value.set(_bcNdc.x, _bcNdc.y);
+    }
   });
 
   return (
     <group
+      ref={groupRef}
       onPointerOver={(e) => {
         e.stopPropagation();
         if (!activeSection) onOver(def.id);
@@ -200,10 +302,13 @@ export default function HubSphere({
       )}
       <group ref={spinRef}>
         {def.kind === 'mercury' && (
-          <GltfSphere url={MODEL_URL.mercury} glow={glow} />
+          <GltfSphere url={MODEL_URL.mercury} glow={glow} billboard={billboard} />
         )}
         {def.kind === 'crystal' && (
-          <GltfSphere url={MODEL_URL.crystal} polish glow={glow} />
+          <GltfSphere url={MODEL_URL.crystal} polish glow={glow} billboard={billboard} />
+        )}
+        {def.kind === 'paper' && (
+          <GltfSphere url={MODEL_URL.paper} glow={glow} billboard={billboard} />
         )}
       </group>
     </group>
@@ -212,3 +317,4 @@ export default function HubSphere({
 
 useGLTF.preload('/models/mercury_mr.glb');
 useGLTF.preload('/models/pool_ball_mr.glb');
+useGLTF.preload('/models/crumpled_paper.glb');

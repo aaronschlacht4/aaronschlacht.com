@@ -12,6 +12,13 @@ import {
 import { SPHERES, type Orbit } from '../../data/spheres';
 import { useScene } from '../../state/useScene';
 import { easeInOut } from '../../lib/geo';
+import {
+  DOCK_NDC_X,
+  DOCK_NDC_Y,
+  DOCK_DIST,
+  HUB_FOV,
+  DOCK_SCALE_MUL,
+} from '../../lib/dock';
 import HubSphere from './HubSphere';
 
 const BASE_PERIOD = 46; // seconds at the reference radius (ambient, slow)
@@ -21,11 +28,11 @@ const REF_R = 1.25;
 // distance from the camera. Projecting through NDC keeps it pinned to the same
 // spot and size at any aspect ratio or camera pitch. The section phase also
 // narrows the camera FOV (see GlobeScene) which flattens perspective so this
-// corner sphere reads as a clean circle instead of an off-axis egg.
-const DOCK_NDC_X = -0.64;
-const DOCK_NDC_Y = 0.56;
-const DOCK_DIST = 3.0;
-const BASE_FOV = 42;
+// corner sphere reads as a clean circle instead of an off-axis egg. These
+// constants (and HUB_FOV, the resting hub FOV the size compensation below is
+// measured against) live in lib/dock so HubOverlay's 2D title layout can
+// compute the same emblem box without duplicating — and risking drift from —
+// the numbers that actually place it.
 const _ndc = new Vector3();
 const _dir = new Vector3();
 const _dock = new Vector3();
@@ -134,9 +141,9 @@ export default function OrbitHub() {
         // docked size for the narrowed section FOV so it stays visually constant
         // (narrower FOV zooms in → shrink world scale by tan(fov/2) ratio).
         const dockScale =
-          0.9 *
+          DOCK_SCALE_MUL *
           (Math.tan((cam.fov * Math.PI) / 360) /
-            Math.tan((BASE_FOV * Math.PI) / 360));
+            Math.tan((HUB_FOV * Math.PI) / 360));
         x = x * (1 - sec) + dockX * sec;
         y = y * (1 - sec) + dockY * sec;
         z = z * (1 - sec) + dockZ * sec;
