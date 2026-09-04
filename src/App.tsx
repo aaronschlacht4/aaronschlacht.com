@@ -255,12 +255,23 @@ export default function App() {
       {/* Fixed globe; its transparent canvas lets the headline + starfield show
           around and behind the planet. Fades/​lifts out into the sections. */}
       <div
-        className="fixed inset-0 z-0"
+        className="fixed inset-0"
         style={{
           opacity: 1,
-          // Interactive in the hub/section so spheres + docked Earth can be
-          // hovered/clicked; inert during the journey so scroll/drag rule.
-          pointerEvents: phase === 'journey' ? 'none' : 'auto',
+          // Above the section page's scrim/text (z-20) so the docked emblem
+          // reads in front of the page, but below the journey overlay (z-30)
+          // since the globe itself is the journey's hero, not an overlay on
+          // top of its UI.
+          zIndex: phase === 'journey' ? 0 : 25,
+          // This div is a full-viewport transparent box in its own right —
+          // even with the canvas inside it non-interactive (below), the div
+          // itself still catches hit-tests unless it's marked pointer-events
+          // none too. Interactive only in the hub, where spheres + docked
+          // Earth are hovered/clicked; off during the journey (scroll/drag
+          // rule) and section (the DOM back-buttons + page content handle
+          // everything there, and now sit — logically — behind this
+          // higher-z-index canvas, so they'd otherwise be unreachable).
+          pointerEvents: phase === 'hub' ? 'auto' : 'none',
         }}
         aria-hidden={globeOpacity < 0.05}
       >
@@ -269,6 +280,10 @@ export default function App() {
           camera={{ position: [0, 0.35, 3.4], fov: 42, near: 0.1, far: 100 }}
           gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
           onCreated={({ gl }) => gl.setClearColor('#02030a', 0)}
+          // R3F sets pointer-events:auto explicitly on its own internal
+          // wrapper, which would otherwise override the div's setting above
+          // by inheritance — so it has to be repeated here too.
+          style={{ pointerEvents: phase === 'hub' ? 'auto' : 'none' }}
         >
           <Suspense fallback={null}>
             <GlobeScene />

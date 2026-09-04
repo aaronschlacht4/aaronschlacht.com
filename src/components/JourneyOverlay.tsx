@@ -28,7 +28,16 @@ export default function JourneyOverlay() {
         >
           {SITE_TITLE}
         </span>
-        <div className="pointer-events-auto rounded-full border border-white/10 bg-[rgba(8,13,22,0.5)] px-3 py-1.5 backdrop-blur-md">
+        {/* pointer-events re-enabled only in the journey: this bar fades to
+            opacity 0 outside it (see the root style above), but opacity alone
+            doesn't stop hit-testing — left auto always, this invisible pill
+            would silently eat clicks meant for whatever sits at this same
+            top-right corner in the hub/section (e.g. the section page's
+            "Back to orbit" button). */}
+        <div
+          className="rounded-full border border-white/10 bg-[rgba(8,13,22,0.5)] px-3 py-1.5 backdrop-blur-md"
+          style={{ pointerEvents: phase === 'journey' ? 'auto' : 'none' }}
+        >
           <Clock />
         </div>
       </div>
