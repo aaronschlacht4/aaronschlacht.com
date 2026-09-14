@@ -2,7 +2,7 @@
  * The orbital-hub sections. Data-driven: adding/removing a sphere here never
  * touches the animation or interaction code. `kind` picks the visual/material.
  */
-export type SphereKind = 'mercury' | 'crystal' | 'paper';
+export type SphereKind = 'mercury' | 'crystal' | 'paper' | 'blackhole';
 
 /** Each sphere rides its own orbit (radius + plane tilt/yaw + starting angle). */
 export type Orbit = {
@@ -97,6 +97,28 @@ export const SPHERES: SphereDef[] = [
       'Occasional deep-dive reviews',
     ],
     link: { label: 'See the shelf', href: '#' },
+  },
+  {
+    id: 'physica',
+    label: 'Physica',
+    tagline: 'Modelling a black hole’s shadow',
+    route: '/physica',
+    kind: 'blackhole',
+    color: '#eec18a',
+    orbit: { radius: 1.5, tilt: 0.52, yaw: -2.8, phase: 5.6 },
+    blurb:
+      'A model of what a black hole actually looks like — tracing light through curved spacetime to draw the shadow it casts and the photon ring around it.',
+    meta: [
+      { k: 'Focus', v: 'General relativity' },
+      { k: 'Year', v: '2025' },
+      { k: 'Tools', v: 'Python' },
+    ],
+    highlights: [
+      'Light paths integrated through curved spacetime',
+      'Shadow boundary and photon ring resolved',
+      'Rendered against a gravitationally lensed background',
+    ],
+    link: { label: 'See the model', href: '#' },
   },
 ];
 
