@@ -7,7 +7,9 @@
   // DNS records + certificate on deploy.
   "routes": [
     { "pattern": "aaronschlacht.com", "custom_domain": true },
-    { "pattern": "www.aaronschlacht.com", "custom_domain": true }
+    { "pattern": "www.aaronschlacht.com", "custom_domain": true },
+    { "pattern": "myforum.space", "custom_domain": true },
+    { "pattern": "www.myforum.space", "custom_domain": true }
   ],
   "assets": {
     "directory": "./dist",
