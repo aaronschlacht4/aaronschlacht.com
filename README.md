@@ -77,28 +77,28 @@ has one anchor (`#how`) and no heading ids, so the inner sections use text
 fragments (`#how:~:text=Running%20it`), which browsers honour on a click and
 otherwise fall back to `#how`.
 
-### A project's page: window + snippets
+### A project's page
 
-Each project page opens on a **live window** into the project's 3D scene and
-then three **interactive snippets** cut from it. `src/projects/registry.ts`
-maps a sphere id to its `Window` and `Snippets` components (lazy, so a
-project's renderer only loads when its page opens); anything unlisted gets
-the generic `ObjectWindow` (the sphere's own model, drag to turn) and
-`SoonSnippets` (its three pages as placeholders).
+An opaque off-white document over the (faded-out) hub scene: the name, a
+line on it, a **live window** into the project's 3D scene, then three
+sections — *How it works*, *Tools used*, *Why I created it* — all from the
+sphere's entry in `src/data/spheres.ts` (`how`, `tools`, `why`).
+`src/projects/registry.ts` maps a sphere id to its `Window` component
+(lazy, so a project's renderer only loads when its page opens); anything
+unlisted gets the generic `ObjectWindow` (the sphere's own model, drag to
+turn).
 
 - **Physica** runs physica.fyi's actual renderer here —
   `src/projects/physica/shader.ts` is that repo's fragment shader verbatim
   (MIT), `renderer.ts` a port of its driver with wheel-zoom removed (a
   window that swallows scroll is a trap; distance is a dial instead), idle
   camera drift added, and rendering paused while the canvas is off-screen or
-  the tab hidden. The window carries the site's console; the snippets are
-  three small renders that each isolate one idea with one control.
-- **Books** frames the existing `BookshelfScene` and adds three data-driven
-  snippets (nightstand, ratings, pull-one-off-the-shelf).
+  the tab hidden. The window carries the site's console.
+- **Books** frames the existing `BookshelfScene`.
 
 Shared chrome lives in `src/projects/shared/`: `WindowFrame` (title bar,
-picture, console strip), `SnippetCard`, and `Dial`/`Toggle` (the gauge
-styling is `.gauge` in `index.css`).
+picture, console strip) and `Dial`/`Toggle` (the gauge styling is `.gauge`
+in `index.css`).
 
 **One WebGL gotcha.** A canvas hands back its one context for good, and
 React's StrictMode disposes and immediately rebuilds on the same canvas — so

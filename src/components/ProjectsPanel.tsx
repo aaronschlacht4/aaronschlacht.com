@@ -1,14 +1,11 @@
 import PanelHeader from './PanelHeader';
 import { SPHERES } from '../data/spheres';
-import { isExternal, siteLabel, whereLabel } from '../lib/links';
-
-const external = { target: '_blank', rel: 'noreferrer' } as const;
+import { isExternal, siteLabel } from '../lib/links';
 
 /**
- * Projects, for the 2D fallback: the same spheres the orbital hub shows, as a
- * flat list. Each carries its title, the project's link, and the three pages
- * into it — one card per project, same data as the 3D section page
- * (src/data/spheres.ts).
+ * Projects, for the 2D fallback: the same spheres the orbital hub shows, as
+ * a flat list — name, the line on it, the link, and the tools. Same data as
+ * the 3D project page (src/data/spheres.ts).
  */
 export default function ProjectsPanel() {
   return (
@@ -37,65 +34,26 @@ export default function ProjectsPanel() {
               >
                 {p.label}
               </h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-ink/80">
-                {p.blurb}
+              <p className="mt-1.5 text-sm leading-relaxed text-ink/80">{p.blurb}</p>
+              {live ? (
+                <a
+                  href={p.link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium"
+                  style={{ color: p.color }}
+                >
+                  {site ?? p.link.label}
+                  <span aria-hidden>↗</span>
+                </a>
+              ) : (
+                <p className="mt-3 text-xs uppercase tracking-[0.2em] text-ink-dim">
+                  Not online yet
+                </p>
+              )}
+              <p className="mt-3 text-xs text-ink-dim">
+                {p.tools.map((t) => t.name).join(' · ')}
               </p>
-
-              <a
-                href={p.link.href}
-                {...(live ? external : {})}
-                className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium"
-                style={{ color: p.color }}
-              >
-                {site ?? p.link.label}
-                <span aria-hidden>{live ? '↗' : '→'}</span>
-              </a>
-
-              <ul className="mt-4 divide-y divide-white/10 border-t border-white/10">
-                {p.pages.map((pg, i) => {
-                  const pageLive = isExternal(pg.href);
-                  const where = whereLabel(pg.href);
-                  return (
-                    <li key={pg.title}>
-                      <a
-                        href={pg.href}
-                        {...(pageLive ? external : {})}
-                        className="flex items-start gap-3 py-3 active:bg-white/[0.04]"
-                      >
-                        <span
-                          className="pt-0.5 font-mono text-[11px]"
-                          style={{
-                            color: p.color,
-                            fontVariantNumeric: 'tabular-nums',
-                          }}
-                        >
-                          {String(i + 1).padStart(2, '0')}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-semibold">
-                            {pg.title}
-                          </span>
-                          <span className="mt-0.5 block text-xs leading-relaxed text-ink-dim">
-                            {pg.blurb}
-                          </span>
-                          {where && (
-                            <span className="mt-1 block truncate font-mono text-[10px] tracking-[0.15em] text-ink-dim/60">
-                              {where}
-                            </span>
-                          )}
-                        </span>
-                        <span
-                          aria-hidden
-                          className="pt-0.5 text-sm"
-                          style={{ color: p.color }}
-                        >
-                          {pageLive ? '↗' : '→'}
-                        </span>
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
             </article>
           );
         })}

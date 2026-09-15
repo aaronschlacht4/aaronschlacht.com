@@ -2,14 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import type { SphereDef } from '../../data/spheres';
 import WindowFrame from '../shared/WindowFrame';
 import Dial, { Toggle } from '../shared/Dial';
-import Loader from '../../components/Loader';
 import { usePhysica } from './usePhysica';
 
 /**
  * The live window into physica.fyi: the site's own shader, running here, with
- * its console (three dials, four toggles, the readouts) redrawn in this
- * page's instrument language. Drag the picture to move round the hole; when
- * left alone the camera drifts slowly so the frame is never a still.
+ * its console (three dials, four toggles, the readouts) under the picture.
+ * Drag the picture to move round the hole; left alone, the camera drifts
+ * slowly so the frame is never a still.
  */
 export default function PhysicaWindow({ def }: { def: SphereDef }) {
   const { hostRef, canvasRef, overlayRef, rendererRef, ready, error } = usePhysica(
@@ -59,10 +58,11 @@ export default function PhysicaWindow({ def }: { def: SphereDef }) {
   }, [ready, r]);
 
   const onPointerDown = useCallback(() => setTouched(true), []);
+  const tone = def.tone;
 
   return (
     <WindowFrame
-      color={def.color}
+      tone={tone}
       label="Live render · every pixel a photon"
       site="physica.fyi"
       href="https://physica.fyi"
@@ -77,7 +77,7 @@ export default function PhysicaWindow({ def }: { def: SphereDef }) {
               max={89}
               format={(v) => `${v.toFixed(0)}°`}
               onChange={setIncl}
-              color={def.color}
+              tone={tone}
               ends={['below', 'above']}
             />
             <Dial
@@ -89,7 +89,7 @@ export default function PhysicaWindow({ def }: { def: SphereDef }) {
               step={0.5}
               format={(v) => `${v.toFixed(0)} M`}
               onChange={setDist}
-              color={def.color}
+              tone={tone}
               ends={['12 M', '80 M']}
             />
             <Dial
@@ -101,15 +101,15 @@ export default function PhysicaWindow({ def }: { def: SphereDef }) {
               step={0.5}
               format={(v) => `${v.toFixed(0)} M`}
               onChange={setOuter}
-              color={def.color}
+              tone={tone}
               ends={['9 M', '28 M']}
             />
           </div>
           <div className="flex flex-wrap items-start gap-2 lg:col-span-4 lg:justify-end">
-            <Toggle label="Disk" on={disk} onChange={setDisk} color={def.color} />
-            <Toggle label="Beaming" on={beaming} onChange={setBeaming} color={def.color} />
-            <Toggle label="Stars" on={stars} onChange={setStars} color={def.color} />
-            <Toggle label="Measure" on={markers} onChange={setMarkers} color={def.color} />
+            <Toggle label="Disk" on={disk} onChange={setDisk} tone={tone} />
+            <Toggle label="Beaming" on={beaming} onChange={setBeaming} tone={tone} />
+            <Toggle label="Stars" on={stars} onChange={setStars} tone={tone} />
+            <Toggle label="Measure" on={markers} onChange={setMarkers} tone={tone} />
           </div>
         </div>
       }
@@ -117,7 +117,7 @@ export default function PhysicaWindow({ def }: { def: SphereDef }) {
       <div
         ref={hostRef}
         onPointerDown={onPointerDown}
-        className="relative aspect-[16/9] w-full touch-none select-none bg-black cursor-grab data-[dragging]:cursor-grabbing max-h-[68vh]"
+        className="relative aspect-[16/9] max-h-[68vh] w-full cursor-grab touch-none select-none bg-black data-[dragging]:cursor-grabbing"
       >
         <canvas ref={canvasRef} className="absolute inset-0 block h-full w-full" />
         <canvas
@@ -127,12 +127,12 @@ export default function PhysicaWindow({ def }: { def: SphereDef }) {
         />
 
         {!ready && !error && (
-          <div className="absolute inset-0">
-            <Loader label="Tracing photons" />
+          <div className="absolute inset-0 grid place-items-center font-mono text-[11px] uppercase tracking-[0.25em] text-[#9a9ea8]">
+            Tracing photons
           </div>
         )}
         {error && (
-          <div className="absolute inset-0 grid place-items-center p-8 text-center text-sm text-ink-dim">
+          <div className="absolute inset-0 grid place-items-center p-8 text-center text-sm text-[#9a9ea8]">
             This window traces light through curved spacetime on the graphics
             card, and this browser could not start WebGL2.
           </div>
@@ -141,9 +141,9 @@ export default function PhysicaWindow({ def }: { def: SphereDef }) {
         {/* Readouts, top-right: the shadow's angular size, and how hard the
             GPU is working. Numbers from the same code the site reports. */}
         {ready && (
-          <div className="pointer-events-none absolute right-4 top-4 hidden text-right font-mono text-[10px] uppercase tracking-[0.2em] text-ink-dim/80 sm:block">
+          <div className="pointer-events-none absolute right-4 top-4 hidden text-right font-mono text-[10px] uppercase tracking-[0.2em] text-white/60 sm:block">
             <div>
-              shadow <span className="text-ink">{stats.shadow.toFixed(2)}°</span>
+              shadow <span className="text-white/90">{stats.shadow.toFixed(2)}°</span>
             </div>
             <div className="mt-1 opacity-70">
               {stats.fps.toFixed(0)} fps · {(stats.quality * 100).toFixed(0)}% res
@@ -154,10 +154,10 @@ export default function PhysicaWindow({ def }: { def: SphereDef }) {
         {/* Drag hint, gone once you have. */}
         {ready && (
           <div
-            className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-dim transition-opacity duration-700"
+            className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-white/60 transition-opacity duration-700"
             style={{ opacity: touched ? 0 : 1 }}
           >
-            <span className="h-px w-6" style={{ background: def.color }} />
+            <span className="h-px w-6 bg-white/50" />
             drag to move around it
           </div>
         )}

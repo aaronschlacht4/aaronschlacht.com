@@ -14,9 +14,8 @@ export default function Dial({
   step = 1,
   format,
   onChange,
-  color,
+  tone,
   ends,
-  compact = false,
 }: {
   label: string;
   hint?: string;
@@ -26,28 +25,22 @@ export default function Dial({
   step?: number;
   format: (v: number) => string;
   onChange: (v: number) => void;
-  color: string;
+  tone: string;
   /** captions for the two ends of the travel */
   ends?: [string, string];
-  compact?: boolean;
 }) {
   const id = useId();
   const t = ((value - min) / (max - min)) * 100;
   return (
     <div className="min-w-0">
       <div className="flex items-baseline justify-between gap-3">
-        <label
-          htmlFor={id}
-          className={`truncate ${compact ? 'text-[12px]' : 'text-[13px]'} text-ink/85`}
-        >
+        <label htmlFor={id} className="truncate text-[13px] text-[#15171c]">
           {label}
-          {hint && !compact && (
-            <span className="ml-2 text-[11px] text-ink-dim/70">{hint}</span>
-          )}
+          {hint && <span className="ml-2 text-[11px] text-[#9a9ea8]">{hint}</span>}
         </label>
         <output
           htmlFor={id}
-          className="shrink-0 font-mono text-[12px] text-ink"
+          className="shrink-0 font-mono text-[12px] text-[#15171c]"
           style={{ fontVariantNumeric: 'tabular-nums' }}
         >
           {format(value)}
@@ -62,10 +55,10 @@ export default function Dial({
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        style={{ ['--gauge' as string]: color, ['--t' as string]: `${t}%` }}
+        style={{ ['--gauge' as string]: tone, ['--t' as string]: `${t}%` }}
       />
       {ends && (
-        <div className="flex justify-between font-mono text-[9px] uppercase tracking-[0.18em] text-ink-dim/50">
+        <div className="flex justify-between font-mono text-[9px] uppercase tracking-[0.18em] text-[#9a9ea8]">
           <span>{ends[0]}</span>
           <span>{ends[1]}</span>
         </div>
@@ -79,12 +72,12 @@ export function Toggle({
   label,
   on,
   onChange,
-  color,
+  tone,
 }: {
   label: string;
   on: boolean;
   onChange: (on: boolean) => void;
-  color: string;
+  tone: string;
 }) {
   return (
     <button
@@ -92,19 +85,19 @@ export function Toggle({
       role="switch"
       aria-checked={on}
       onClick={() => onChange(!on)}
-      className="group inline-flex items-center gap-2.5 rounded-full border px-3 py-1.5 text-[12px] transition"
+      className="inline-flex items-center gap-2.5 rounded-full border px-3 py-1.5 text-[12px] transition"
       style={{
-        borderColor: on ? `${color}80` : 'rgba(255,255,255,0.12)',
-        color: on ? '#f2f6fc' : 'rgba(154,167,184,0.9)',
-        background: on ? `${color}14` : 'transparent',
+        borderColor: on ? tone : '#d5d1c8',
+        color: on ? '#15171c' : '#7a7e88',
+        background: on ? `${tone}14` : 'transparent',
       }}
     >
       <span
         className="relative h-3 w-5 rounded-full transition-colors"
-        style={{ background: on ? color : 'rgba(255,255,255,0.14)' }}
+        style={{ background: on ? tone : '#cfcbc2' }}
       >
         <span
-          className="absolute top-[2px] h-2 w-2 rounded-full bg-[#04060c] transition-transform"
+          className="absolute top-[2px] h-2 w-2 rounded-full bg-white transition-transform"
           style={{ transform: on ? 'translateX(10px)' : 'translateX(2px)' }}
         />
       </span>

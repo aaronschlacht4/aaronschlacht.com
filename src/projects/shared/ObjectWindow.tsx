@@ -6,12 +6,11 @@ import type { SphereDef, SphereKind } from '../../data/spheres';
 import { DPR_RANGE } from '../../lib/env';
 import { makeSpaceEnv } from '../../scenes/hub/spaceEnv';
 import WindowFrame from './WindowFrame';
-import Loader from '../../components/Loader';
 
 /**
- * A window for projects without a live site yet: the project's own object
- * from the hub, up close, lit by the accent and free to spin. Drag to turn
- * it; it idles round on its own otherwise.
+ * A window for projects without a live scene of their own yet: the project's
+ * object from the hub, up close and free to spin. Drag to turn it; it idles
+ * round on its own otherwise.
  */
 const MODEL_URL: Partial<Record<SphereKind, string>> = {
   mercury: '/models/mercury_mr.glb',
@@ -55,16 +54,9 @@ export default function ObjectWindow({ def }: { def: SphereDef }) {
   const url = MODEL_URL[def.kind];
   const env = useMemo(makeSpaceEnv, []);
   return (
-    <WindowFrame color={def.color} label={`${def.label} · preview`} site={null}>
-      <div className="relative aspect-[16/9] max-h-[68vh] w-full cursor-grab bg-[#04060c] active:cursor-grabbing">
-        {/* Accent wash behind the object so it sits in its own light. */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background: `radial-gradient(60% 70% at 50% 55%, ${def.color}1f, transparent 70%)`,
-          }}
-        />
-        {url ? (
+    <WindowFrame tone={def.tone} label={`${def.label} · preview`}>
+      <div className="relative aspect-[16/9] max-h-[68vh] w-full cursor-grab bg-[#0a0c12] active:cursor-grabbing">
+        {url && (
           <Canvas
             dpr={DPR_RANGE}
             camera={{ position: [0, 0.2, 4.6], fov: 32 }}
@@ -73,7 +65,7 @@ export default function ObjectWindow({ def }: { def: SphereDef }) {
           >
             <Suspense fallback={null}>
               <ambientLight intensity={0.45} color="#eaf1ff" />
-              <directionalLight position={[2.5, 3, 4]} intensity={1.6} color="#ffffff" />
+              <directionalLight position={[2.5, 3, 4]} intensity={1.6} />
               <directionalLight position={[-4, -1, 2]} intensity={0.9} color={def.color} />
               <Environment map={env} />
               <Fitted url={url} polish={def.kind === 'crystal'} />
@@ -89,11 +81,9 @@ export default function ObjectWindow({ def }: { def: SphereDef }) {
               />
             </Suspense>
           </Canvas>
-        ) : (
-          <Loader label={def.label} />
         )}
-        <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-dim">
-          <span className="h-px w-6" style={{ background: def.color }} />
+        <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-white/60">
+          <span className="h-px w-6 bg-white/50" />
           drag to turn it
         </div>
       </div>

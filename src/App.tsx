@@ -257,12 +257,15 @@ export default function App() {
       <div
         className="fixed inset-0"
         style={{
-          opacity: 1,
-          // Above the section page's scrim/text (z-20) so the docked emblem
-          // reads in front of the page, but below the journey overlay (z-30)
-          // since the globe itself is the journey's hero, not an overlay on
-          // top of its UI.
-          zIndex: phase === 'journey' ? 0 : 25,
+          // A project page is an opaque document; the scene fades out under
+          // it (the sphere still flies to its dock, unseen, so the return
+          // trip has somewhere to start from) and fades back in on return.
+          opacity: phase === 'section' ? 0 : 1,
+          transition: 'opacity 0.5s ease',
+          // Below the section page (z-20) — it's hidden there anyway — and
+          // below the journey overlay (z-30), since the globe is the
+          // journey's hero, not an overlay on top of its UI.
+          zIndex: phase === 'journey' ? 0 : 10,
           // This div is a full-viewport transparent box in its own right —
           // even with the canvas inside it non-interactive (below), the div
           // itself still catches hit-tests unless it's marked pointer-events

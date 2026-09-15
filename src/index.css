@@ -66,16 +66,17 @@
 }
 
 @layer components {
-  /* A range input drawn as a gauge: hairline track, a single mark as the
-     handle, the travelled part coloured by --t (set from script). Colour via
-     --gauge. See projects/shared/Dial.tsx. */
+  /* A range input drawn as a gauge on the light project page: hairline
+     track, a single mark as the handle, the travelled part coloured by --t
+     (set from script). Colour via --gauge. See projects/shared/Dial.tsx. */
   .gauge {
     -webkit-appearance: none;
     appearance: none;
     height: 18px;
     background: transparent;
     cursor: pointer;
-    --gauge: var(--color-accent);
+    --gauge: #15171c;
+    --gauge-rest: rgba(21, 23, 28, 0.16);
   }
   .gauge::-webkit-slider-runnable-track {
     height: 1px;
@@ -83,8 +84,8 @@
       to right,
       var(--gauge) 0,
       var(--gauge) var(--t, 50%),
-      rgba(255, 255, 255, 0.14) var(--t, 50%),
-      rgba(255, 255, 255, 0.14) 100%
+      var(--gauge-rest) var(--t, 50%),
+      var(--gauge-rest) 100%
     );
   }
   .gauge::-webkit-slider-thumb {
@@ -95,11 +96,10 @@
     border: 0;
     border-radius: 0;
     background: var(--gauge);
-    box-shadow: 0 0 10px var(--gauge);
   }
   .gauge::-moz-range-track {
     height: 1px;
-    background: rgba(255, 255, 255, 0.14);
+    background: var(--gauge-rest);
   }
   .gauge::-moz-range-progress {
     height: 1px;
@@ -111,13 +111,12 @@
     border: 0;
     border-radius: 0;
     background: var(--gauge);
-    box-shadow: 0 0 10px var(--gauge);
   }
   .gauge:focus-visible {
     outline: none;
   }
   .gauge:focus-visible::-webkit-slider-thumb {
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
+    box-shadow: 0 0 0 3px rgba(21, 23, 28, 0.25);
   }
 }
 
