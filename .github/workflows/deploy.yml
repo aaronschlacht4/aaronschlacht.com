@@ -1,0 +1,49 @@
+---
+# Build and publish the site to Cloudflare Workers on every push to main.
+#
+# Deploys used to be a manual `wrangler deploy` from a laptop, which meant a
+# pushed commit and the live site could quietly disagree. This closes that gap:
+# main is what's deployed.
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN   — scoped to "Edit Cloudflare Workers"
+#   CLOUDFLARE_ACCOUNT_ID  — from the Cloudflare dashboard URL / Workers page
+# Without them the deploy step fails; the build still runs, so a broken build
+# is caught either way.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # so a deploy can be re-run without an empty commit
+
+# Never let two deploys race; a superseded one is cancelled rather than
+# landing on top of a newer build.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc # 22.12.0, the same pin used locally
+          cache: npm
+
+      - run: npm ci
+
+      # `build` is `tsc -b && vite build`, so a type error fails the deploy.
+      - run: npm run build
+
+      - name: Deploy to Cloudflare Workers
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
