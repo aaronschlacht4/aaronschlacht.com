@@ -12,6 +12,18 @@ export type Orbit = {
   phase: number; // starting angle
 };
 
+/**
+ * The alternative to orbiting: sit still and bend everything else instead.
+ * `at` is a fixed world point outside the orbits; `mass` is the warp strength
+ * fed to OrbitHub's gravityWarp (world units², tuned by eye — nothing
+ * physical). Anchored spheres get no dotted path of their own, since they
+ * don't travel one.
+ */
+export type Anchor = {
+  at: [number, number, number];
+  mass: number;
+};
+
 export type SphereDef = {
   id: string;
   label: string;
@@ -20,7 +32,10 @@ export type SphereDef = {
   kind: SphereKind;
   /** UI accent for the hover label + the section page (not the 3D material) */
   color: string;
-  orbit: Orbit;
+  /** Exactly one of these: a sphere either rides an orbit, or anchors the
+   *  system in place and pulls every orbit toward it. */
+  orbit?: Orbit;
+  anchor?: Anchor;
   // ── Section-page content (placeholder copy — edit freely) ─────────────
   /** one- or two-sentence lead under the title */
   blurb: string;
@@ -105,7 +120,14 @@ export const SPHERES: SphereDef[] = [
     route: '/physica',
     kind: 'blackhole',
     color: '#eec18a',
-    orbit: { radius: 1.5, tilt: 0.52, yaw: -2.8, phase: 5.6 },
+    // No orbit: it hangs still, off to one side, a little above and set well
+    // back. Position and mass are a pair — pulled in closer, a lighter hole
+    // warps the paths just as much but drags the outer orbit through its own
+    // disk. From out here (|r| 2.96, vs the outermost orbit's 1.66) a heavier
+    // one bends that path by 0.41 and still leaves 0.91 of clearance at closest
+    // approach — comfortably outside the 0.56 disk. Kept low enough in y that
+    // the hover label has room above it at the top of the frame.
+    anchor: { at: [1.72, 0.55, -2.35], mass: 0.85 },
     blurb:
       'A model of what a black hole actually looks like — tracing light through curved spacetime to draw the shadow it casts and the photon ring around it.',
     meta: [

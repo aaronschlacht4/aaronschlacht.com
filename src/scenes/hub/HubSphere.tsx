@@ -17,6 +17,7 @@ import {
   type Mesh,
 } from 'three';
 import type { SphereDef } from '../../data/spheres';
+import { easeInOut } from '../../lib/geo';
 
 /** A sphere's live billboard-correction uniforms (see addBillboardCorrection),
  * recomputed every frame in HubSphere from the group's actual world position. */
@@ -192,14 +193,30 @@ gl_Position.xy += uBCNdc * gl_Position.w;`,
 // lying diagonally. This is its true plane normal, in mesh-local space.
 const DISK_NORMAL = new Vector3(-0.3661, 0.9306, 0).normalize();
 const UP = new Vector3(0, 1, 0);
-const ELEVATION = 0.2; // rad: nearly edge-on, just enough to see over the disk
+const ELEVATION = 0.34; // rad: off edge-on enough to open the disk into an ellipse
 const DISK_SPIN = 0.28; // rad/s about its own axis
 
 // Radii measured from the same file, in its native units: the shadow core
 // sits at ~176 and the disk layers run out to ~1210.
-const SHADOW_R = 380; // model units; matches the R*0.5 shadow sphere below
-const DISK_IN = 520; // hottest, just off the shadow
+const SHADOW_R = 380; // model units; the shadow sphere below is fitted to this
+// The light ramp across the disk. Deliberately loose: a narrow ramp packs the
+// whole disk into one tight, hot band right against the shadow, which reads as
+// a compressed ring rather than something with depth. Starting the rise later,
+// widening the hot band and holding the falloff off until further out spreads
+// the light across most of the disk's span.
+const DISK_IN = 640; // centre of the hot band, well clear of the shadow
+const DISK_WIDTH = 340; // how far that band spreads (gaussian sigma)
+const DISK_FADE = 900; // where the outer falloff begins
 const DISK_OUT = 1250;
+
+// Overall size in the hub, as a multiple of the base sphere radius. Much
+// larger than the solid spheres because it isn't one — it anchors the system,
+// and it sits a long way further back, so it needs the size to read at all.
+// Capped by clearance: the outer disk has to stay clear of the nearest orbit
+// at closest approach (see the anchor note in spheres.ts).
+const DISK_SPAN = R * 5.6;
+// Shrink factor that takes the docked emblem back to the standard radius R.
+const EMBLEM_SCALE = (R * 2) / DISK_SPAN;
 
 // The wide outer ring shells and the stray planet are what made this read as
 // Saturn; `distortion` ships at opacity 0 and never draws.
@@ -228,8 +245,17 @@ const INNER_MAT = 'black_hole_light2';
  * hot just off the shadow, falling through amber and out to nothing. One
  * ramp shared by every shell is what replaces the banding with a single
  * coherent disk. The inner edge runs above 1.0 so Bloom catches it.
+ *
+ * On top of the ramp, spiral arms wind inward and sweep faster the deeper
+ * they get, so the disk reads as matter falling in rather than a lit ring
+ * turning on the spot — the one cue that sells the thing as gravity. The
+ * arms are computed in the disk plane from `uTime`, mutated per frame.
  */
-function paintDisk(mat: MeshStandardMaterial, glow: { value: number }) {
+function paintDisk(
+  mat: MeshStandardMaterial,
+  glow: { value: number },
+  time: { value: number },
+) {
   mat.map = null;
   mat.emissiveMap = null;
   mat.color.setRGB(0, 0, 0); // emissive-only; nothing here is lit by the scene
@@ -242,6 +268,7 @@ function paintDisk(mat: MeshStandardMaterial, glow: { value: number }) {
     shader.uniforms.uAmber = { value: new Color('#ffb066') };
     shader.uniforms.uNormal = { value: DISK_NORMAL };
     shader.uniforms.uGlow = glow;
+    shader.uniforms.uTime = time;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 varying vec3 vObjPos;`)
@@ -254,18 +281,35 @@ vObjPos = position;`);
 varying vec3 vObjPos;
 uniform vec3 uAmber;
 uniform vec3 uNormal;
-uniform float uGlow;`,
+uniform float uGlow;
+uniform float uTime;`,
       )
       .replace(
         '#include <emissivemap_fragment>',
         `#include <emissivemap_fragment>
-         // distance from the spin axis, i.e. radius within the disk plane
-         float _rr = length(vObjPos - dot(vObjPos, uNormal) * uNormal);
+         // radius within the disk plane (distance from the spin axis)
+         vec3 _axial = dot(vObjPos, uNormal) * uNormal;
+         vec3 _inPlane = vObjPos - _axial;
+         float _rr = length(_inPlane);
          float _in = smoothstep(${SHADOW_R}.0, ${DISK_IN}.0, _rr);
-         float _out = 1.0 - smoothstep(820.0, ${DISK_OUT}.0, _rr);
-         float _hot = exp(-pow((_rr - ${DISK_IN}.0) / 210.0, 2.0));
+         float _out = 1.0 - smoothstep(${DISK_FADE}.0, ${DISK_OUT}.0, _rr);
+         float _hot = exp(-pow((_rr - ${DISK_IN}.0) / ${DISK_WIDTH}.0, 2.0));
+
+         // Spiral infall. A basis in the disk plane gives an angle; winding it
+         // against radius makes arms, and shearing the sweep by 1/r makes the
+         // inner disk outrun the outer — differential rotation, the look of
+         // matter spiralling down rather than a ring turning rigidly.
+         vec3 _t1 = normalize(cross(uNormal, vec3(0.0, 0.0, 1.0)));
+         vec3 _t2 = cross(uNormal, _t1);
+         float _ang = atan(dot(_inPlane, _t2), dot(_inPlane, _t1));
+         float _shear = uTime * (1.4 + 900.0 / max(_rr, 300.0));
+         float _arms = sin(_ang * 2.0 + _rr * 0.011 - _shear);
+         // Never dip to black: this modulates the disk, it doesn't gate it.
+         float _flow = 0.78 + 0.22 * _arms;
+
          vec3 _col = mix(uAmber, vec3(1.0), _hot * 0.6) * (0.28 + 1.25 * _hot);
-         totalEmissiveRadiance = _col * _in * _out * (1.0 + uGlow * 0.9);`,
+         totalEmissiveRadiance =
+           _col * _in * _out * _flow * (1.0 + uGlow * 0.9);`,
       );
   };
   mat.needsUpdate = true;
@@ -281,17 +325,31 @@ uniform float uGlow;`,
  *
  * Its geometry is reused; its shading is not (see paintDisk). The baked roll
  * is undone so the disk lies flat, it's viewed near edge-on from a slight
- * elevation, and it turns on its own axis — a still black hole reads as a
- * prop. Hovering brightens the disk rather than washing the object in gold
- * like the solid spheres; nothing lands on a black hole.
+ * elevation, and it turns on its own axis — the object holds a fixed point in
+ * the hub (OrbitHub anchors it), so its own rotation and the infall in the
+ * disk are the only things moving, and without them it would read as a prop.
+ * Hovering brightens the disk rather than washing the object in gold like the
+ * solid spheres; nothing lands on a black hole.
  *
  * No billboard correction here: that trick keeps *spheres* circular off-axis,
  * and applying it to a flat disk would shear its tilt.
+ *
+ * Docking needs one extra step the solid spheres don't. OrbitHub's dock scale
+ * assumes an emblem of the standard radius R, and this thing is DISK_SPAN/2
+ * across — so on its own it would dock several times oversized and run off the
+ * corner, straight through the section title. EMBLEM_SCALE shrinks it back to
+ * exactly R as it docks, which is the radius HubOverlay's dockedEmblemBox lays
+ * the title and its dashed rings out against.
  */
 function BlackHole({ id, glow }: { id: string; glow: { value: number } }) {
   const { scene } = useGLTF(MODEL_URL.blackhole);
   const spinRef = useRef<Group>(null);
-  const obj = useMemo(() => {
+  const dockRef = useRef<Group>(null);
+  const docked = useRef(0);
+  // Disk-clock for the spiral infall, shared by every shell's material and
+  // mutated in place each frame (never reassigned) so the patch compiles once.
+  const time = useMemo(() => ({ value: 0 }), []);
+  const { obj, shadowR } = useMemo(() => {
     const m = scene.clone(true);
     m.quaternion.setFromUnitVectors(DISK_NORMAL, UP); // disk into XZ, spin about Y
     m.traverse((o) => {
@@ -303,7 +361,7 @@ function BlackHole({ id, glow }: { id: string; glow: { value: number } }) {
         return;
       }
       const mat = src.clone();
-      paintDisk(mat, glow);
+      paintDisk(mat, glow, time);
       mesh.material = mat;
     });
     // Fit on what actually draws — Box3.setFromObject would count the hidden
@@ -320,7 +378,7 @@ function BlackHole({ id, glow }: { id: string; glow: { value: number } }) {
       }
     });
     const size = box.getSize(new Vector3());
-    const sc = (R * 3.2) / (Math.max(size.x, size.y, size.z) || 1);
+    const sc = DISK_SPAN / (Math.max(size.x, size.y, size.z) || 1);
     m.scale.setScalar(sc);
     // Centre on the innermost shell, not the bounding box: the shells are not
     // concentric with each other, so centring on the box leaves the hole
@@ -329,22 +387,37 @@ function BlackHole({ id, glow }: { id: string; glow: { value: number } }) {
       ? box.getCenter(new Vector3())
       : shadowBox.getCenter(new Vector3());
     m.position.set(-center.x * sc, -center.y * sc, -center.z * sc);
-    return m;
-  }, [scene, glow]);
+    // Derive the shadow's world radius from the fit rather than hard-coding a
+    // multiple of R: the two stay locked together however DISK_SPAN is tuned.
+    return { obj: m, shadowR: SHADOW_R * sc };
+  }, [scene, glow, time]);
 
   useFrame((_, delta) => {
     const { hovered, activeSection } = useScene.getState();
+
+    // Ease down to emblem size while this section is open. Matched to the
+    // damping rate OrbitHub moves the emblem to the corner with, so the
+    // shrink and the flight land together.
+    const k = 1 - Math.exp(-5 * Math.min(delta, 0.05));
+    docked.current += ((activeSection === id ? 1 : 0) - docked.current) * k;
+    if (dockRef.current) {
+      const t = easeInOut(docked.current);
+      dockRef.current.scale.setScalar(1 + (EMBLEM_SCALE - 1) * t);
+    }
+
     const paused = hovered === id && activeSection === null;
-    if (spinRef.current && !paused) spinRef.current.rotation.y += delta * DISK_SPIN;
+    if (paused) return;
+    if (spinRef.current) spinRef.current.rotation.y += delta * DISK_SPIN;
+    time.value += delta;
   });
 
   return (
-    <group rotation={[ELEVATION, 0, 0]}>
+    <group ref={dockRef} rotation={[ELEVATION, 0, 0]}>
       {/* The shadow. Unlit black so there is no shading to give away that
           it is a sphere, and it writes depth so the far half of the disk is
           correctly hidden behind it while the near half crosses in front. */}
       <mesh>
-        <sphereGeometry args={[R * 0.5, 48, 48]} />
+        <sphereGeometry args={[shadowR, 48, 48]} />
         <meshBasicMaterial color="#000000" />
       </mesh>
       <group ref={spinRef}>
@@ -372,6 +445,11 @@ export default function HubSphere({
 }) {
   const groupRef = useRef<Group>(null);
   const spinRef = useRef<Group>(null);
+  // Hover target (and the label's anchor height). The black hole is much wider
+  // than a sphere, but most of that width is thin, mostly-empty outer disk —
+  // sizing the target to the whole span would swallow pointer events over
+  // nothing, so it covers the shadow and the bright inner disk only.
+  const hitR = def.kind === 'blackhole' ? R * 1.7 : R * 1.25;
   const hovered = useScene((s) => s.hovered);
   const activeSection = useScene((s) => s.activeSection);
   // Shared 0..1 strength for the golden inner glow, damped so it eases in/out.
@@ -425,13 +503,13 @@ export default function HubSphere({
     >
       {/* invisible slightly-larger hit sphere for comfortable hovering */}
       <mesh visible={false}>
-        <sphereGeometry args={[R * 1.25, 8, 8]} />
+        <sphereGeometry args={[hitR, 8, 8]} />
       </mesh>
 
       {/* Hover label card, anchored to the sphere. */}
       {hovered === def.id && !activeSection && (
         <Html
-          position={[0, R * 1.25, 0]}
+          position={[0, hitR, 0]}
           center
           style={{ pointerEvents: 'none' }}
         >

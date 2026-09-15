@@ -56,17 +56,73 @@ function orbitPos(a: number, o: Orbit): [number, number, number] {
 const speedFor = (o: Orbit) =>
   (Math.PI * 2) / (BASE_PERIOD * Math.pow(o.radius / REF_R, 1.5));
 
+// ── Gravity ───────────────────────────────────────────────────────────────
+// The anchored masses (just the black hole today, but the field sums, so any
+// number works). Read once: these never move, which is the whole point.
+const HOLES = SPHERES.flatMap((s) =>
+  s.anchor ? [{ pos: new Vector3(...s.anchor.at), mass: s.anchor.mass }] : [],
+);
+
+const GRAV_SOFT = 0.6; // softening length: keeps the pull finite at the centre
+const GRAV_MAX_FRAC = 0.5; // never drag a point more than half of its own distance
+const SWING = 1.9; // extra angular speed at closest approach
+
+const _gd = new Vector3();
+const _raw = new Vector3();
+
+/**
+ * Bend a point toward every anchored mass: softened inverse-square, with the
+ * displacement capped at a fraction of the distance so nothing can be dragged
+ * into — or through — the hole.
+ *
+ * The masses never move, so this field is static, and that is what lets the
+ * dotted paths stay honest: each ring is warped once at build time by this
+ * same function, and the sphere riding it is warped every frame by it too, so
+ * the sphere still sits exactly on its drawn path. The orbits look pulled
+ * out of true toward the hole because they are.
+ */
+function gravityWarp(p: Vector3, out: Vector3): Vector3 {
+  out.copy(p);
+  for (const hole of HOLES) {
+    _gd.copy(hole.pos).sub(p);
+    const r = _gd.length();
+    if (r < 1e-4) continue;
+    const pull = hole.mass / (r * r + GRAV_SOFT * GRAV_SOFT);
+    out.addScaledVector(_gd, Math.min(pull, GRAV_MAX_FRAC * r) / r);
+  }
+  return out;
+}
+
+/** Same falloff, as a 0..~1 "how deep in the well is this point" number —
+ *  used to speed a sphere up as it swings past the hole and let it coast
+ *  again on the far side. Gravity you can read off the motion, not just the
+ *  shape of the path. */
+function wellDepth(p: Vector3): number {
+  let d = 0;
+  for (const hole of HOLES) {
+    const r2 = _gd.copy(hole.pos).sub(p).lengthSq();
+    d += hole.mass / (r2 + GRAV_SOFT * GRAV_SOFT);
+  }
+  return d;
+}
+
 /**
  * The project spheres, each on its own orbit around Earth. They fly in as Earth
  * shrinks (hubAnim), orbit slowly on distinct tilted planes and spin on their
  * own axes, a hovered sphere scales up and eases to a pause, and the opened
  * sphere flies to centre while the rest drift away (sectionAnim). A dotted path
  * marks each orbit.
+ *
+ * The black hole is the exception: it doesn't orbit anything. It hangs at a
+ * fixed point off to one side and gravity does the work instead — every orbit
+ * (and its dotted path) is pulled out of true toward it, and each sphere
+ * accelerates as it swings through the well and coasts as it climbs back out.
+ * See gravityWarp.
  */
 export default function OrbitHub() {
   const N = SPHERES.length;
   const refs = useRef<(Group | null)[]>([]);
-  const angles = useRef(SPHERES.map((s) => s.orbit.phase));
+  const angles = useRef(SPHERES.map((s) => s.orbit?.phase ?? 0));
   const hoverS = useRef(SPHERES.map(() => 1));
   const hub = useRef(0);
   const section = useRef(0);
@@ -74,13 +130,18 @@ export default function OrbitHub() {
   const setHovered = useScene((s) => s.setHovered);
   const openSection = useScene((s) => s.openSection);
 
-  // A dotted ring per orbit.
+  // A dotted ring per orbit — warped by the same gravity field the spheres
+  // ride, so the drawn path is the real one. Anchored spheres travel no path,
+  // so they get no ring (null, to keep the array index-aligned with SPHERES).
   const rings = useMemo(
     () =>
       SPHERES.map((s) => {
+        if (!s.orbit) return null;
+        const o = s.orbit;
         const pts: Vector3[] = [];
         for (let k = 0; k <= 200; k++) {
-          pts.push(new Vector3(...orbitPos((k / 200) * Math.PI * 2, s.orbit)));
+          const p = new Vector3(...orbitPos((k / 200) * Math.PI * 2, o));
+          pts.push(gravityWarp(p, p));
         }
         const geom = new BufferGeometry().setFromPoints(pts);
         const line = new LineLoop(
@@ -123,15 +184,39 @@ export default function OrbitHub() {
       const g = refs.current[i];
       if (!g) continue;
       const def = SPHERES[i];
-      const o = def.orbit;
-      (rings[i].material as LineDashedMaterial).opacity = 0.34 * h * (1 - sec);
+      const ring = rings[i];
+      if (ring) (ring.material as LineDashedMaterial).opacity = 0.34 * h * (1 - sec);
 
       const paused = hovered === def.id || activeSection !== null;
-      if (!paused) angles.current[i] += dt * speedFor(o);
 
-      // fly-in: extra radius when hub=0, settling onto the orbit
-      const flyR: Orbit = { ...o, radius: o.radius + 2.6 * (1 - h) };
-      let [x, y, z] = orbitPos(angles.current[i], flyR);
+      let x: number, y: number, z: number;
+      if (def.anchor) {
+        // Anchored: it doesn't travel. It flies in along its own bearing as the
+        // hub assembles, then holds that point for good.
+        const k = 1 + 1.6 * (1 - h);
+        [x, y, z] = def.anchor.at;
+        x *= k;
+        y *= k;
+        z *= k;
+      } else {
+        const o = def.orbit!;
+        // Speed is set by where the sphere is *now*: it accelerates into the
+        // hole's well and coasts back out. Reading the depth before advancing
+        // costs one extra orbitPos and keeps position and speed in step.
+        _raw.set(...orbitPos(angles.current[i], o));
+        if (!paused) {
+          angles.current[i] += dt * speedFor(o) * (1 + SWING * wellDepth(_raw));
+        }
+
+        // fly-in: extra radius when hub=0, settling onto the orbit
+        const flyR: Orbit = { ...o, radius: o.radius + 2.6 * (1 - h) };
+        _raw.set(...orbitPos(angles.current[i], flyR));
+        // ...then bend the whole path toward the anchored mass.
+        gravityWarp(_raw, _raw);
+        x = _raw.x;
+        y = _raw.y;
+        z = _raw.z;
+      }
 
       hoverS.current[i] = damp(hoverS.current[i], hovered === def.id ? 1.08 : 1, 8, dt);
       let scale = h * hoverS.current[i];
@@ -160,9 +245,9 @@ export default function OrbitHub() {
 
   return (
     <group>
-      {rings.map((r, i) => (
-        <primitive key={`ring-${i}`} object={r} />
-      ))}
+      {rings.map((r, i) =>
+        r ? <primitive key={`ring-${i}`} object={r} /> : null,
+      )}
       {SPHERES.map((def, i) => (
         <group
           key={def.id}
