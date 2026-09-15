@@ -15,14 +15,13 @@ const WINDOW_CAMERA = {
 /** The 3D shelf, framed. Hover a spine to pull the book out. */
 export default function BooksWindow({ def }: { def: SphereDef }) {
   return (
-    <WindowFrame tone={def.tone} label="The shelf · live scene">
+    <WindowFrame tone={def.tone} label="The shelf">
       <div className="relative aspect-[16/9] max-h-[68vh] w-full bg-[#070b12]">
         <Suspense fallback={null}>
           <BookshelfScene camera={WINDOW_CAMERA} />
         </Suspense>
-        <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-white/60">
-          <span className="h-px w-6 bg-white/50" />
-          hover a spine
+        <div className="pointer-events-none absolute bottom-4 left-4 text-[13px] text-white/60">
+          Hover a spine
         </div>
       </div>
     </WindowFrame>

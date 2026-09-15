@@ -63,7 +63,7 @@ export default function PhysicaWindow({ def }: { def: SphereDef }) {
   return (
     <WindowFrame
       tone={tone}
-      label="Live render · every pixel a photon"
+      label="Live render"
       site="physica.fyi"
       href="https://physica.fyi"
       console={
@@ -127,8 +127,8 @@ export default function PhysicaWindow({ def }: { def: SphereDef }) {
         />
 
         {!ready && !error && (
-          <div className="absolute inset-0 grid place-items-center font-mono text-[11px] uppercase tracking-[0.25em] text-[#9a9ea8]">
-            Tracing photons
+          <div className="absolute inset-0 grid place-items-center text-[14px] text-[#9a9ea8]">
+            Tracing photons…
           </div>
         )}
         {error && (
@@ -141,11 +141,14 @@ export default function PhysicaWindow({ def }: { def: SphereDef }) {
         {/* Readouts, top-right: the shadow's angular size, and how hard the
             GPU is working. Numbers from the same code the site reports. */}
         {ready && (
-          <div className="pointer-events-none absolute right-4 top-4 hidden text-right font-mono text-[10px] uppercase tracking-[0.2em] text-white/60 sm:block">
+          <div
+            className="pointer-events-none absolute right-4 top-4 hidden text-right text-[12px] text-white/60 sm:block"
+            style={{ fontVariantNumeric: 'tabular-nums' }}
+          >
             <div>
-              shadow <span className="text-white/90">{stats.shadow.toFixed(2)}°</span>
+              Shadow <span className="text-white/90">{stats.shadow.toFixed(2)}°</span>
             </div>
-            <div className="mt-1 opacity-70">
+            <div className="mt-0.5 opacity-70">
               {stats.fps.toFixed(0)} fps · {(stats.quality * 100).toFixed(0)}% res
             </div>
           </div>
@@ -154,11 +157,10 @@ export default function PhysicaWindow({ def }: { def: SphereDef }) {
         {/* Drag hint, gone once you have. */}
         {ready && (
           <div
-            className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-white/60 transition-opacity duration-700"
+            className="pointer-events-none absolute bottom-4 left-4 text-[13px] text-white/60 transition-opacity duration-700"
             style={{ opacity: touched ? 0 : 1 }}
           >
-            <span className="h-px w-6 bg-white/50" />
-            drag to move around it
+            Drag to move around it
           </div>
         )}
       </div>

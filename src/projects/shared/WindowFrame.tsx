@@ -27,7 +27,7 @@ export default function WindowFrame({
   const external = href ? /^https?:\/\//i.test(href) : false;
   return (
     <figure className="m-0 overflow-hidden rounded-xl border border-[#dcd8cf] bg-white shadow-[0_24px_60px_-32px_rgba(20,22,30,0.35)]">
-      <div className="flex items-center justify-between gap-4 border-b border-[#eceae4] px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.2em] text-[#7a7e88]">
+      <div className="flex items-center justify-between gap-4 border-b border-[#eceae4] px-4 py-2.5 text-[13px] text-[#7a7e88]">
         <span className="flex min-w-0 items-center gap-2.5">
           <span
             className="h-2 w-2 shrink-0 rounded-full"

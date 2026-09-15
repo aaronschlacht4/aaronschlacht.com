@@ -40,7 +40,7 @@ export default function Dial({
         </label>
         <output
           htmlFor={id}
-          className="shrink-0 font-mono text-[12px] text-[#15171c]"
+          className="shrink-0 text-[13px] text-[#15171c]"
           style={{ fontVariantNumeric: 'tabular-nums' }}
         >
           {format(value)}
@@ -58,7 +58,7 @@ export default function Dial({
         style={{ ['--gauge' as string]: tone, ['--t' as string]: `${t}%` }}
       />
       {ends && (
-        <div className="flex justify-between font-mono text-[9px] uppercase tracking-[0.18em] text-[#9a9ea8]">
+        <div className="flex justify-between text-[11px] text-[#9a9ea8]">
           <span>{ends[0]}</span>
           <span>{ends[1]}</span>
         </div>

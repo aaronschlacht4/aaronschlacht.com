@@ -26,20 +26,17 @@ export default function ProjectPage({ def }: { def: SphereDef }) {
       <button
         type="button"
         onClick={() => openSection(null)}
-        className="group inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-[#7a7e88] transition hover:text-[#15171c]"
+        className="group inline-flex items-center gap-1.5 text-[14px] text-[#7a7e88] transition hover:text-[#15171c]"
       >
         <span className="transition-transform group-hover:-translate-x-0.5">←</span>
         Back to orbit
       </button>
 
       <header className="mt-14 sm:mt-20">
-        <p className="font-mono text-[11px] uppercase tracking-[0.25em]" style={{ color: def.tone }}>
+        <p className="text-[15px] font-medium" style={{ color: def.tone }}>
           {def.tagline}
         </p>
-        <h1
-          className="mt-3 text-[clamp(40px,6vw,72px)] font-bold leading-[0.95] tracking-tight text-[#15171c]"
-          style={{ fontFamily: 'var(--font-display)' }}
-        >
+        <h1 className="mt-2 text-[clamp(36px,5vw,56px)] font-semibold leading-[1.05] tracking-[-0.02em] text-[#15171c]">
           {def.label}
         </h1>
         <p className="mt-6 max-w-[42rem] text-[19px] leading-[1.6] text-[#4a4e58]">
@@ -62,17 +59,15 @@ export default function ProjectPage({ def }: { def: SphereDef }) {
             </span>
           </a>
         ) : (
-          <p className="mt-5 font-mono text-[11px] uppercase tracking-[0.2em] text-[#9a9ea8]">
-            Not online yet
-          </p>
+          <p className="mt-5 text-[15px] text-[#9a9ea8]">Not online yet</p>
         )}
       </header>
 
       <div className="mt-12 sm:mt-16">
         <Suspense
           fallback={
-            <div className="grid aspect-[16/9] max-h-[68vh] w-full place-items-center rounded-xl border border-[#dcd8cf] bg-[#0a0c12] font-mono text-[11px] uppercase tracking-[0.2em] text-[#7a7e88]">
-              Loading {def.label}
+            <div className="grid aspect-[16/9] max-h-[68vh] w-full place-items-center rounded-xl border border-[#dcd8cf] bg-[#0a0c12] text-[14px] text-[#7a7e88]">
+              Loading {def.label}…
             </div>
           }
         >
@@ -109,9 +104,7 @@ export default function ProjectPage({ def }: { def: SphereDef }) {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="mt-20 grid gap-6 border-t border-[#e6e3db] pt-8 md:grid-cols-12 md:gap-10">
-      <h2 className="font-mono text-[11px] uppercase tracking-[0.25em] text-[#7a7e88] md:col-span-4 md:pt-1">
-        {title}
-      </h2>
+      <h2 className="text-[15px] font-medium text-[#7a7e88] md:col-span-4">{title}</h2>
       <div className="space-y-5 text-[17px] leading-[1.7] text-[#2b2e36] md:col-span-8 md:max-w-[40rem]">
         {children}
       </div>

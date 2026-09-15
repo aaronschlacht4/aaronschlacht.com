@@ -54,7 +54,7 @@ export default function ObjectWindow({ def }: { def: SphereDef }) {
   const url = MODEL_URL[def.kind];
   const env = useMemo(makeSpaceEnv, []);
   return (
-    <WindowFrame tone={def.tone} label={`${def.label} · preview`}>
+    <WindowFrame tone={def.tone} label="Preview">
       <div className="relative aspect-[16/9] max-h-[68vh] w-full cursor-grab bg-[#0a0c12] active:cursor-grabbing">
         {url && (
           <Canvas
@@ -82,9 +82,8 @@ export default function ObjectWindow({ def }: { def: SphereDef }) {
             </Suspense>
           </Canvas>
         )}
-        <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-white/60">
-          <span className="h-px w-6 bg-white/50" />
-          drag to turn it
+        <div className="pointer-events-none absolute bottom-4 left-4 text-[13px] text-white/60">
+          Drag to turn it
         </div>
       </div>
     </WindowFrame>
