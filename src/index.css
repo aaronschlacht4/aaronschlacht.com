@@ -65,6 +65,62 @@
   }
 }
 
+@layer components {
+  /* A range input drawn as a gauge: hairline track, a single mark as the
+     handle, the travelled part coloured by --t (set from script). Colour via
+     --gauge. See projects/shared/Dial.tsx. */
+  .gauge {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 18px;
+    background: transparent;
+    cursor: pointer;
+    --gauge: var(--color-accent);
+  }
+  .gauge::-webkit-slider-runnable-track {
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      var(--gauge) 0,
+      var(--gauge) var(--t, 50%),
+      rgba(255, 255, 255, 0.14) var(--t, 50%),
+      rgba(255, 255, 255, 0.14) 100%
+    );
+  }
+  .gauge::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 3px;
+    height: 15px;
+    margin-top: -7px;
+    border: 0;
+    border-radius: 0;
+    background: var(--gauge);
+    box-shadow: 0 0 10px var(--gauge);
+  }
+  .gauge::-moz-range-track {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .gauge::-moz-range-progress {
+    height: 1px;
+    background: var(--gauge);
+  }
+  .gauge::-moz-range-thumb {
+    width: 3px;
+    height: 15px;
+    border: 0;
+    border-radius: 0;
+    background: var(--gauge);
+    box-shadow: 0 0 10px var(--gauge);
+  }
+  .gauge:focus-visible {
+    outline: none;
+  }
+  .gauge:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
+  }
+}
+
 @layer utilities {
   /* Thin custom scrollbar for overlay panels */
   .scroll-thin {

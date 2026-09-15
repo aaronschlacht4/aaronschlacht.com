@@ -48,6 +48,7 @@ routing is derived from `SPHERES`, so adding a sphere adds its route.
 | What | File |
 | --- | --- |
 | **Projects / orbital hub spheres** (label, tagline, route, orbit, link, the three pages) | `src/data/spheres.ts` |
+| Project pages' live windows + interactive snippets (per project) | `src/projects/` (see below) |
 | Life-journey stops (places, ages, notes, coords) | `src/data/journey.ts` |
 | Bookshelf (titles, ratings, takes, "currently reading") | `src/data/books.ts` |
 | Movies | `src/data/movies.ts` |
@@ -75,6 +76,34 @@ Page links can point into a section of the project's site. Physica's write-up
 has one anchor (`#how`) and no heading ids, so the inner sections use text
 fragments (`#how:~:text=Running%20it`), which browsers honour on a click and
 otherwise fall back to `#how`.
+
+### A project's page: window + snippets
+
+Each project page opens on a **live window** into the project's 3D scene and
+then three **interactive snippets** cut from it. `src/projects/registry.ts`
+maps a sphere id to its `Window` and `Snippets` components (lazy, so a
+project's renderer only loads when its page opens); anything unlisted gets
+the generic `ObjectWindow` (the sphere's own model, drag to turn) and
+`SoonSnippets` (its three pages as placeholders).
+
+- **Physica** runs physica.fyi's actual renderer here —
+  `src/projects/physica/shader.ts` is that repo's fragment shader verbatim
+  (MIT), `renderer.ts` a port of its driver with wheel-zoom removed (a
+  window that swallows scroll is a trap; distance is a dial instead), idle
+  camera drift added, and rendering paused while the canvas is off-screen or
+  the tab hidden. The window carries the site's console; the snippets are
+  three small renders that each isolate one idea with one control.
+- **Books** frames the existing `BookshelfScene` and adds three data-driven
+  snippets (nightstand, ratings, pull-one-off-the-shelf).
+
+Shared chrome lives in `src/projects/shared/`: `WindowFrame` (title bar,
+picture, console strip), `SnippetCard`, and `Dial`/`Toggle` (the gauge
+styling is `.gauge` in `index.css`).
+
+**One WebGL gotcha.** A canvas hands back its one context for good, and
+React's StrictMode disposes and immediately rebuilds on the same canvas — so
+`PhysicaRenderer.dispose()` only loses the context once the canvas has left
+the document, or the rebuilt renderer inherits a dead one.
 
 ## 3D notes (the non-obvious parts)
 

@@ -5,17 +5,31 @@ import { Group, MathUtils, type Mesh } from 'three';
 import { BOOKS, type Book } from '../data/books';
 import { DPR_RANGE } from '../lib/env';
 
+const DEFAULT_CAMERA = { position: [0, 0.6, 9] as [number, number, number], fov: 40 };
+
 /**
  * A real 3D bookshelf: each book is a box of slightly varied dimensions standing
  * on a plank. Hovering slides a book out and tilts it, revealing a tooltip with
  * the one-line take + rating. The "currently reading" book is pulled out and
  * laid forward so it stands apart. Fixed camera with gentle mouse parallax.
  */
-export default function BookshelfScene() {
+export default function BookshelfScene({
+  // Full-bleed section framing by default; the project page's window passes
+  // a closer, higher camera so the shelf fills a 16:9 frame. (R3F aims a
+  // positioned camera at the origin unless a rotation is given — a raised
+  // camera without one tilts down and crops the spines.)
+  camera = DEFAULT_CAMERA,
+}: {
+  camera?: {
+    position: [number, number, number];
+    rotation?: [number, number, number];
+    fov: number;
+  };
+}) {
   return (
     <Canvas
       dpr={DPR_RANGE}
-      camera={{ position: [0, 0.6, 9], fov: 40 }}
+      camera={camera}
       gl={{ antialias: true }}
       onCreated={({ gl }) => gl.setClearColor('#070b12', 1)}
     >

@@ -3,10 +3,8 @@ import { AnimatePresence, motion, type Variants } from 'framer-motion';
 import { useScene } from '../state/useScene';
 import { SPHERES } from '../data/spheres';
 import { dockedEmblemBox } from '../lib/dock';
-import { isExternal, siteLabel, whereLabel } from '../lib/links';
+import ProjectPage from './ProjectPage';
 
-/** Live project links open in a new tab; placeholders ('#') stay put. */
-const external = { target: '_blank', rel: 'noreferrer' } as const;
 
 const container: Variants = {
   hidden: {},
@@ -61,12 +59,12 @@ function Kicker({ color, children }: { color: string; children: string }) {
  * sphere docked top-left as the rotating home emblem.
  *
  * Laid out as an orbital dossier rather than a document: the emblem anchors
- * a single column (shared left edge, running to the right margin). Down that
- * column: the project's address as the one big link (facts beside it), the
- * lead copy, then three cards that each open one page of the project — so
- * the full width is used and every edge lines up with something. Concentric
- * dashed rings centred on the emblem echo the hub's orbits, since this is
- * literally the sphere that just flew in from one.
+ * a single column (shared left edge, running to the right margin), the title
+ * sits beside it, and the page itself — the live window into the project's
+ * 3D scene, its address and facts, three interactive snippets, the pages to
+ * read — runs down that column (see ProjectPage). Concentric dashed rings
+ * centred on the emblem echo the hub's orbits, since this is literally the
+ * sphere that just flew in from one.
  */
 export default function HubOverlay() {
   const phase = useScene((s) => s.phase);
@@ -98,11 +96,6 @@ export default function HubOverlay() {
   const byDiameter = box.r * 2 * 0.66;
   const byWidth = colWidth / (Math.max(1, label.length) * 0.54);
   const titleSize = Math.max(30, Math.min(byDiameter, byWidth, 150));
-
-  // The project's own address, shown as text (`physica.fyi`) when it's a real
-  // URL; a '#' placeholder falls back to the link's label and doesn't open a tab.
-  const live = active ? isExternal(active.link.href) : false;
-  const site = active ? siteLabel(active.link.href) : null;
 
   const index = SPHERES.findIndex((s) => s.id === activeSection);
   const indexLabel = `${String(index + 1).padStart(2, '0')} / ${String(
@@ -228,163 +221,15 @@ export default function HubOverlay() {
             </motion.h1>
           </motion.div>
 
-          {/* ── Body: one column from the emblem's edge to the right margin.
-              Three bands, top to bottom: the address rail (the project's
-              URL as the page's one big action, with the facts beside it),
-              the lead copy, and three cards that each open one page of the
-              project. Every band shares the same two edges. ────────────── */}
-          <motion.div
-            variants={container}
-            initial="hidden"
-            animate="show"
-            className="relative z-30 pb-24"
-            style={{
-              paddingTop: box.cy + box.r + 76,
-              paddingLeft: blockLeft,
-              paddingRight: EDGE,
-            }}
-          >
-            {/* Address rail */}
-            <motion.div
-              variants={item}
-              className="grid items-end gap-x-12 gap-y-8 border-y border-white/10 py-7 lg:grid-cols-12"
-            >
-              <div className="min-w-0 lg:col-span-7">
-                <Kicker color={active.color}>
-                  {live ? 'Live site' : 'Coming soon'}
-                </Kicker>
-                <a
-                  href={active.link.href}
-                  {...(live ? external : {})}
-                  className="group mt-4 inline-flex max-w-full items-baseline gap-3"
-                  aria-label={active.link.label}
-                >
-                  <span
-                    className="truncate bg-gradient-to-r from-white to-white/70 bg-clip-text text-[clamp(26px,3.6vw,54px)] font-semibold leading-none tracking-tight text-transparent underline decoration-white/15 decoration-1 underline-offset-[0.18em] transition group-hover:decoration-[var(--c)]"
-                    style={{
-                      fontFamily: 'var(--font-display)',
-                      ['--c' as string]: active.color,
-                    }}
-                  >
-                    {site ?? active.link.label}
-                  </span>
-                  <span
-                    aria-hidden
-                    className="shrink-0 text-2xl transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-                    style={{ color: active.color }}
-                  >
-                    {live ? '↗' : '→'}
-                  </span>
-                </a>
-                {site && (
-                  <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.25em] text-ink-dim/55">
-                    {active.link.label}
-                  </p>
-                )}
-              </div>
-
-              <dl className="flex flex-wrap gap-y-5 lg:col-span-5 lg:justify-end">
-                {active.meta.map((m, i) => (
-                  <div
-                    key={m.k}
-                    className={
-                      i === 0 ? 'pr-9' : 'border-l border-white/10 pl-9 pr-9 last:pr-0'
-                    }
-                  >
-                    <dt className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-dim/55">
-                      {m.k}
-                    </dt>
-                    <dd className="mt-2.5 text-[15px] font-medium text-ink/90">
-                      {m.v}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </motion.div>
-
-            {/* Lead */}
-            <motion.p
-              variants={item}
-              className="mt-16 max-w-[54rem] text-2xl font-light leading-[1.5] text-ink/85 xl:text-[30px]"
-            >
-              {active.blurb}
-            </motion.p>
-
-            {/* Pages: three doors into the project, each one card. */}
-            <motion.div
-              variants={item}
-              className="mt-20 flex items-baseline justify-between gap-6"
-            >
-              <Kicker color={active.color}>Three ways in</Kicker>
-              {site && (
-                <span className="hidden font-mono text-[10px] tracking-[0.2em] text-ink-dim/45 sm:block">
-                  {site}
-                </span>
-              )}
-            </motion.div>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              {active.pages.map((pg, i) => {
-                const pageLive = isExternal(pg.href);
-                const where = whereLabel(pg.href);
-                return (
-                  <motion.a
-                    key={pg.title}
-                    variants={item}
-                    whileHover={{ y: -4 }}
-                    transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-                    href={pg.href}
-                    {...(pageLive ? external : {})}
-                    className="group relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-sm transition-colors hover:border-[var(--c)] hover:bg-white/[0.05]"
-                    style={{ ['--c' as string]: `${active.color}66` }}
-                  >
-                    {/* Accent hairline along the top edge; grows on hover. */}
-                    <span
-                      aria-hidden
-                      className="absolute left-6 top-0 h-px w-8 transition-all duration-500 ease-out group-hover:w-[calc(100%-3rem)]"
-                      style={{ background: active.color }}
-                    />
-                    <span
-                      className="font-mono text-[11px]"
-                      style={{
-                        color: active.color,
-                        fontVariantNumeric: 'tabular-nums',
-                      }}
-                    >
-                      {String(i + 1).padStart(2, '0')}
-                    </span>
-                    <h3
-                      className="mt-7 text-[22px] font-semibold leading-tight tracking-tight text-white"
-                      style={{ fontFamily: 'var(--font-display)' }}
-                    >
-                      {pg.title}
-                    </h3>
-                    <p className="mt-2.5 flex-1 text-[14.5px] leading-relaxed text-ink/70">
-                      {pg.blurb}
-                    </p>
-                    <span className="mt-8 flex items-center justify-between gap-4 border-t border-white/[0.08] pt-4 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-dim/70">
-                      <span className="truncate">{where ?? 'Soon'}</span>
-                      <span
-                        aria-hidden
-                        className="shrink-0 transition-transform group-hover:translate-x-1"
-                        style={{ color: active.color }}
-                      >
-                        {pageLive ? '↗' : '→'}
-                      </span>
-                    </span>
-                  </motion.a>
-                );
-              })}
-            </div>
-
-            {/* Closing rule: mirrors the address rail's, so the composition is
-                framed top and bottom on the same two edges instead of
-                trailing off into the vignette. */}
-            <motion.div
-              variants={item}
-              className="mt-24 border-t border-white/10"
-            />
-          </motion.div>
+          {/* ── The page: window, address, snippets, pages (see ProjectPage).
+              Padded to the emblem's left edge and the right margin, starting
+              just below the hero. ──────────────────────────────────────── */}
+          <ProjectPage
+            def={active}
+            paddingTop={box.cy + box.r + 64}
+            paddingLeft={blockLeft}
+            paddingRight={EDGE}
+          />
         </motion.div>
       )}
     </AnimatePresence>
