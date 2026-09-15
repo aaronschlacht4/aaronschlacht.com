@@ -18,6 +18,7 @@ import {
   DOCK_DIST,
   HUB_FOV,
   DOCK_SCALE_MUL,
+  dockScroll,
 } from '../../lib/dock';
 import HubSphere from './HubSphere';
 
@@ -171,9 +172,12 @@ export default function OrbitHub() {
     // Where the docked emblem lands: the world point on the ray through the
     // top-left NDC target, at a fixed distance from the camera. unproject()
     // handles the camera's pitch and aspect exactly, so the emblem sits fully
-    // in the upper-left corner (with margin) on any viewport.
+    // in the upper-left corner (with margin) on any viewport. The section
+    // page's scroll lifts the target by the same distance in NDC (2 units
+    // per viewport height), so the emblem scrolls off with the title it heads.
     const cam = state.camera as PerspectiveCamera;
-    _ndc.set(DOCK_NDC_X, DOCK_NDC_Y, 0.5).unproject(cam);
+    const scrollNdc = (dockScroll.px / Math.max(1, state.size.height)) * 2;
+    _ndc.set(DOCK_NDC_X, DOCK_NDC_Y + scrollNdc, 0.5).unproject(cam);
     _dir.copy(_ndc).sub(cam.position).normalize();
     _dock.copy(cam.position).addScaledVector(_dir, DOCK_DIST);
     const dockX = _dock.x;

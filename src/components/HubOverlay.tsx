@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, type Variants } from 'framer-motion';
 import { useScene } from '../state/useScene';
 import { SPHERES } from '../data/spheres';
-import { dockedEmblemBox } from '../lib/dock';
+import { dockedEmblemBox, dockScroll } from '../lib/dock';
 import ProjectPage from './ProjectPage';
-
 
 const container: Variants = {
   hidden: {},
@@ -82,6 +81,12 @@ export default function HubOverlay() {
     };
   }, [hovered, phase]);
 
+  // The emblem rides the page's scroll (see lib/dock). Back to the top the
+  // moment the page closes, so the next one opens with it docked in place.
+  useEffect(() => {
+    if (phase !== 'section') dockScroll.px = 0;
+  }, [phase]);
+
   // Two edges do the work. The block's left edge is the emblem's own left
   // edge, so one vertical line runs the whole page: emblem → rail → lead
   // copy. The title alone is inset beside the emblem, because the emblem is
@@ -112,6 +117,9 @@ export default function HubOverlay() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.45 }}
           className="scroll-thin fixed inset-0 z-20 overflow-y-auto"
+          onScroll={(e) => {
+            dockScroll.px = e.currentTarget.scrollTop;
+          }}
         >
           {/* Legibility scrim: an accent-tinted wash behind the emblem fading
               into a deepening vignette, so text reads over the live scene. */}
@@ -123,8 +131,10 @@ export default function HubOverlay() {
           />
 
           {/* Concentric orbit rings centred on the emblem — the hub's dash
-              language, carried through so the page reads as a docked planet. */}
-          <svg className="pointer-events-none fixed inset-0 h-full w-full">
+              language, carried through so the page reads as a docked planet.
+              Absolute (not fixed): the rings, the emblem's hit-target and
+              the hero all belong to the page header and scroll with it. */}
+          <svg className="pointer-events-none absolute inset-x-0 top-0 h-screen w-full">
             <g
               transform={`translate(${box.cx} ${box.cy}) rotate(-12)`}
               fill="none"
@@ -142,7 +152,7 @@ export default function HubOverlay() {
               placed to exactly cover it (see lib/dock). */}
           <button
             onClick={() => openSection(null)}
-            className="fixed z-40 rounded-full"
+            className="absolute z-40 rounded-full"
             style={{
               left: box.cx - box.r,
               top: box.cy - box.r,
@@ -167,24 +177,11 @@ export default function HubOverlay() {
             Back to orbit
           </motion.button>
 
-          {/* Scrolled content dissolves as it passes under the emblem zone at
-              the top, so the docked sphere and the back control never sit on
-              top of live copy. Above the body, below the hero (which scrolls
-              away with the page) and the fixed controls. */}
-          <div
-            className="pointer-events-none fixed inset-x-0 top-0 z-[31]"
-            style={{
-              height: box.cy + box.r + 48,
-              background:
-                'linear-gradient(180deg, rgba(3,5,12,0.94) 0%, rgba(3,5,12,0.72) 55%, rgba(3,5,12,0) 100%)',
-            }}
-          />
-
           {/* ── Hero: title sits flush beside the emblem, vertically centred
               on it (translateY(-50%) against its own auto height holds that
               however many lines the label wraps to). Absolute, not fixed: it
-              belongs to the page and scrolls off with it, while the emblem
-              stays put as the persistent way home. ────────────────────── */}
+              belongs to the page and scrolls off with it — and so does the
+              emblem itself (OrbitHub lifts it by the page's scroll). ───── */}
           <motion.div
             initial="hidden"
             animate="show"

@@ -27,10 +27,20 @@ export const SPHERE_R = 0.2; // base sphere radius, world units
 export const DOCK_SCALE_MUL = 0.9;
 
 /**
+ * How far the section page has scrolled (CSS px). The docked emblem is part
+ * of that page's header, not a fixed badge, so it has to scroll away with the
+ * title rather than float over the content below — HubOverlay writes this
+ * from its scroll container and OrbitHub lifts the emblem by the same amount.
+ * Mutated in place (read every frame), never reassigned.
+ */
+export const dockScroll = { px: 0 };
+
+/**
  * The docked emblem's screen-space centre (px) and radius (px) once fully
- * settled, for a viewport of the given CSS size. Pure trig — a point placed
- * via unproject(NDC) always reprojects back to that same NDC, so the centre
- * needs no camera math at all; the radius mirrors OrbitHub's dockScale.
+ * settled, for a viewport of the given CSS size, at scroll 0. Pure trig — a
+ * point placed via unproject(NDC) always reprojects back to that same NDC,
+ * so the centre needs no camera math at all; the radius mirrors OrbitHub's
+ * dockScale.
  */
 export function dockedEmblemBox(vw: number, vh: number) {
   const cx = (DOCK_NDC_X * 0.5 + 0.5) * vw;

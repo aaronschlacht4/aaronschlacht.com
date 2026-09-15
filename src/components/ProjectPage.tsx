@@ -80,26 +80,37 @@ export default function ProjectPage({
       >
         <div className="min-w-0 lg:col-span-7">
           <Kicker color={def.color}>{live ? 'Live site' : 'Coming soon'}</Kicker>
-          <a
-            href={def.link.href}
-            {...(live ? external : {})}
-            className="group mt-4 inline-flex max-w-full items-baseline gap-3"
-            aria-label={def.link.label}
-          >
-            <span
-              className="truncate bg-gradient-to-r from-white to-white/70 bg-clip-text text-[clamp(26px,3.4vw,50px)] font-semibold leading-none tracking-tight text-transparent underline decoration-white/15 decoration-1 underline-offset-[0.18em] transition group-hover:decoration-[var(--c)]"
-              style={{ fontFamily: 'var(--font-display)', ['--c' as string]: def.color }}
+          {live ? (
+            <a
+              href={def.link.href}
+              {...external}
+              className="group mt-4 inline-flex max-w-full items-baseline gap-3"
+              aria-label={def.link.label}
             >
-              {site ?? def.link.label}
-            </span>
-            <span
-              aria-hidden
-              className="shrink-0 text-2xl transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-              style={{ color: def.color }}
+              <span
+                className="truncate bg-gradient-to-r from-white to-white/70 bg-clip-text text-[clamp(26px,3.4vw,50px)] font-semibold leading-none tracking-tight text-transparent underline decoration-white/15 decoration-1 underline-offset-[0.18em] transition group-hover:decoration-[var(--c)]"
+                style={{ fontFamily: 'var(--font-display)', ['--c' as string]: def.color }}
+              >
+                {site ?? def.link.label}
+              </span>
+              <span
+                aria-hidden
+                className="shrink-0 text-2xl transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                style={{ color: def.color }}
+              >
+                ↗
+              </span>
+            </a>
+          ) : (
+            // No site yet: say so in the same type, but it's not a link to
+            // nowhere.
+            <p
+              className="mt-4 bg-gradient-to-r from-white/80 to-white/45 bg-clip-text text-[clamp(26px,3.4vw,50px)] font-semibold leading-none tracking-tight text-transparent"
+              style={{ fontFamily: 'var(--font-display)' }}
             >
-              {live ? '↗' : '→'}
-            </span>
-          </a>
+              {def.link.label}
+            </p>
+          )}
           <p className="mt-5 max-w-[40rem] text-[17px] font-light leading-[1.6] text-ink/80 xl:text-[19px]">
             {def.blurb}
           </p>
@@ -149,12 +160,15 @@ export default function ProjectPage({
           {def.pages.map((pg, i) => {
             const pageLive = isExternal(pg.href);
             const where = whereLabel(pg.href);
+            // A row is only a link when there's somewhere to go.
+            const Row = pageLive ? 'a' : 'div';
             return (
               <li key={pg.title} className="border-b border-white/[0.08]">
-                <a
-                  href={pg.href}
-                  {...(pageLive ? external : {})}
-                  className="group grid items-baseline gap-x-6 gap-y-1 py-4 transition-colors hover:bg-white/[0.02] sm:grid-cols-12"
+                <Row
+                  {...(pageLive ? { href: pg.href, ...external } : {})}
+                  className={`group grid items-baseline gap-x-6 gap-y-1 py-4 sm:grid-cols-12 ${
+                    pageLive ? 'transition-colors hover:bg-white/[0.02]' : ''
+                  }`}
                 >
                   <span
                     className="font-mono text-[11px] sm:col-span-1"
@@ -173,15 +187,17 @@ export default function ProjectPage({
                   </span>
                   <span className="flex items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-dim/70 sm:col-span-2 sm:justify-end">
                     <span className="truncate">{where ?? 'Soon'}</span>
-                    <span
-                      aria-hidden
-                      className="shrink-0 transition-transform group-hover:translate-x-1"
-                      style={{ color: def.color }}
-                    >
-                      {pageLive ? '↗' : '→'}
-                    </span>
+                    {pageLive && (
+                      <span
+                        aria-hidden
+                        className="shrink-0 transition-transform group-hover:translate-x-1"
+                        style={{ color: def.color }}
+                      >
+                        ↗
+                      </span>
+                    )}
                   </span>
-                </a>
+                </Row>
               </li>
             );
           })}
