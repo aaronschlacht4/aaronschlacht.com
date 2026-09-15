@@ -47,9 +47,8 @@ routing is derived from `SPHERES`, so adding a sphere adds its route.
 
 | What | File |
 | --- | --- |
-| **Orbital hub spheres** (label, tagline, route, orbit, section copy) | `src/data/spheres.ts` |
+| **Projects / orbital hub spheres** (label, tagline, route, orbit, link, the three pages) | `src/data/spheres.ts` |
 | Life-journey stops (places, ages, notes, coords) | `src/data/journey.ts` |
-| Projects | `src/data/projects.ts` |
 | Bookshelf (titles, ratings, takes, "currently reading") | `src/data/books.ts` |
 | Movies | `src/data/movies.ts` |
 | Section metadata, site title + tagline | `src/data/sections.ts` |
@@ -63,11 +62,19 @@ Drop project screenshots in `public/covers/` and movie poster art in
 
 1. Add an entry to `SPHERES` in `src/data/spheres.ts` — `orbit` gives it its own
    radius, plane tilt/yaw and starting angle, so orbits stay visually distinct.
+   Its section page is built from `link` (the project's URL, shown as the page's
+   one big link) and `pages` (exactly three entry points into the project, each
+   a clickable card: title, one-line blurb, deep link).
 2. If it needs a new look, add a `kind`, a model URL in `MODEL_URL` and a render
    branch + `useGLTF.preload` in `src/scenes/hub/HubSphere.tsx`.
 
-Nothing else needs touching: the orbit animation, hover, docking, routing and
-the section page are all driven off that one entry.
+Nothing else needs touching: the orbit animation, hover, docking, routing, the
+section page and the mobile Projects list are all driven off that one entry.
+
+Page links can point into a section of the project's site. Physica's write-up
+has one anchor (`#how`) and no heading ids, so the inner sections use text
+fragments (`#how:~:text=Running%20it`), which browsers honour on a click and
+otherwise fall back to `#how`.
 
 ## 3D notes (the non-obvious parts)
 

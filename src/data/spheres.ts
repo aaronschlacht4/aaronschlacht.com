@@ -24,6 +24,18 @@ export type Anchor = {
   mass: number;
 };
 
+/**
+ * One way into the project: a page (or a section of one) on the project's
+ * own site. The section page shows three of these as clickable cards.
+ */
+export type ProjectPage = {
+  title: string;
+  /** one sentence on what's there */
+  blurb: string;
+  /** deep link — an absolute URL, ideally with an anchor into the section */
+  href: string;
+};
+
 export type SphereDef = {
   id: string;
   label: string;
@@ -36,15 +48,15 @@ export type SphereDef = {
    *  system in place and pulls every orbit toward it. */
   orbit?: Orbit;
   anchor?: Anchor;
-  // ── Section-page content (placeholder copy — edit freely) ─────────────
+  // ── Section-page content ───────────────────────────────────────────────
   /** one- or two-sentence lead under the title */
   blurb: string;
-  /** small key/value chips in the hero (role, year, stack…) */
+  /** small key/value facts in the rail (role, year, stack…) */
   meta: { k: string; v: string }[];
-  /** bulleted highlights shown in the side panel */
-  highlights: string[];
-  /** primary call-to-action button */
-  link?: { label: string; href: string };
+  /** the project itself — shown as the page's one big link */
+  link: { label: string; href: string };
+  /** three entry points into the project, each a clickable card */
+  pages: [ProjectPage, ProjectPage, ProjectPage];
 };
 
 export const SPHERES: SphereDef[] = [
@@ -63,12 +75,27 @@ export const SPHERES: SphereDef[] = [
       { k: 'Year', v: '2024' },
       { k: 'Stack', v: 'React · Node · Postgres' },
     ],
-    highlights: [
-      'Threaded, real-time discussions',
-      'Reputation and lightweight moderation',
-      'Full-text search across every post',
-    ],
     link: { label: 'Visit Mercurio', href: '#' },
+    // TODO: point these at the real site once it's live.
+    pages: [
+      {
+        title: 'Threads',
+        blurb:
+          'Real-time threaded discussion, built so a long conversation still reads cleanly.',
+        href: '#',
+      },
+      {
+        title: 'Moderation',
+        blurb:
+          'Reputation and lightweight moderation that stay out of the way until they are needed.',
+        href: '#',
+      },
+      {
+        title: 'Search',
+        blurb: 'Full-text search across every post, fast enough to feel local.',
+        href: '#',
+      },
+    ],
   },
   {
     id: 'markets',
@@ -85,12 +112,28 @@ export const SPHERES: SphereDef[] = [
       { k: 'Year', v: '2024' },
       { k: 'Tools', v: 'Python · Notebooks' },
     ],
-    highlights: [
-      'Calibration studies on live market data',
-      'Backtests of simple strategies',
-      'Notes on market microstructure',
-    ],
     link: { label: 'Read the notes', href: '#' },
+    // TODO: point these at the real notes once they're published.
+    pages: [
+      {
+        title: 'Calibration',
+        blurb:
+          'How well live market prices track what actually happens, bucket by bucket.',
+        href: '#',
+      },
+      {
+        title: 'Backtests',
+        blurb:
+          'Simple strategies run against historical quotes, and where they stop working.',
+        href: '#',
+      },
+      {
+        title: 'Microstructure',
+        blurb:
+          'Notes on spreads, depth, and how the order book moves when news lands.',
+        href: '#',
+      },
+    ],
   },
   {
     id: 'books',
@@ -106,12 +149,25 @@ export const SPHERES: SphereDef[] = [
       { k: 'Currently', v: 'Non-fiction · sci-fi' },
       { k: 'Updated', v: 'Monthly' },
     ],
-    highlights: [
-      'Short notes on every book I finish',
-      'A running list of favorites',
-      'Occasional deep-dive reviews',
-    ],
     link: { label: 'See the shelf', href: '#' },
+    // TODO: point these at the real shelf once it's online.
+    pages: [
+      {
+        title: 'Notes',
+        blurb: 'A short note on every book I finish, written the same week.',
+        href: '#',
+      },
+      {
+        title: 'Favorites',
+        blurb: 'The running shortlist: the books I keep recommending.',
+        href: '#',
+      },
+      {
+        title: 'Reviews',
+        blurb: 'The occasional longer piece, when a book earns one.',
+        href: '#',
+      },
+    ],
   },
   {
     id: 'physica',
@@ -135,12 +191,35 @@ export const SPHERES: SphereDef[] = [
       { k: 'Year', v: '2025' },
       { k: 'Tools', v: 'Python' },
     ],
-    highlights: [
-      'Light paths integrated through curved spacetime',
-      'Shadow boundary and photon ring resolved',
-      'Rendered against a gravitationally lensed background',
+    link: {
+      label: 'Interactive model and write-up',
+      href: 'https://physica.fyi',
+    },
+    // physica.fyi renders its write-up from markdown into one <article id="how">,
+    // and its headings carry no ids of their own — so "How it works" (the
+    // article's own h1) links to #how, and the two inner sections use text
+    // fragments (#how:~:text=…), which every current browser honours on a
+    // click and which fall back to #how where unsupported.
+    pages: [
+      {
+        title: 'How it works',
+        blurb:
+          'Every pixel is a photon traced backwards through curved spacetime until it hits the horizon, the disk, or a star.',
+        href: 'https://physica.fyi/#how',
+      },
+      {
+        title: 'Checking it',
+        blurb:
+          'The integrator is held against four results relativity gives independently, from Einstein’s deflection to the photon sphere at 3M.',
+        href: 'https://physica.fyi/#how:~:text=Checking%20it%20against%20known%20answers',
+      },
+      {
+        title: 'Running it',
+        blurb:
+          'One fragment shader, fourth-order Runge–Kutta per pixel, with the resolution tuned live to hold the frame rate.',
+        href: 'https://physica.fyi/#how:~:text=Running%20it',
+      },
     ],
-    link: { label: 'See the model', href: '#' },
   },
 ];
 
