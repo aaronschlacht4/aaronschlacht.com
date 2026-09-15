@@ -4,6 +4,7 @@ import type { SphereDef } from '../../data/spheres';
 import WindowFrame from '../shared/WindowFrame';
 import { Toggle } from '../shared/Dial';
 import { prefersReducedMotion } from '../../lib/env';
+import { ClaudeMark, GoogleMark, OpenAIMark, WhatsAppMark } from './icons';
 
 /**
  * A demo of what Mercurio does, played on a loop: a dispatcher posts a job
@@ -267,18 +268,36 @@ export default function MercurioWindow({ def }: { def: SphereDef }) {
         {/* ── The pipeline ──────────────────────────────────────────────── */}
         <div className="flex flex-col bg-white">
           <div className="flex items-center justify-between gap-3 border-b border-[#eceae4] px-4 py-2.5">
-            <div className="text-[14px] font-medium text-[#15171c]">Mercurio</div>
+            <div>
+              <div className="text-[14px] font-medium text-[#15171c]">Mercurio</div>
+              <div className="text-[11.5px] text-[#9a9ea8]">What happens to each message</div>
+            </div>
             <Toggle label="Auto-reply" on={auto} onChange={setAuto} tone={tone} />
           </div>
 
           <ol className="flex-1 space-y-0 px-4 py-4">
-            <Step n={1} stage={stage} tone={tone} title="Message received" detail={`From ${s.from}`} />
+            <Step
+              n={1}
+              stage={stage}
+              tone={tone}
+              icon={<WhatsAppMark size={16} />}
+              title="New message in the group"
+              detail={`From ${s.from}`}
+            />
             <Step
               n={2}
               stage={stage}
               tone={tone}
-              title="Parsed by Claude"
-              detail={isJob ? 'It’s a job. Fields pulled out:' : 'Not a job — filtered out as chatter.'}
+              icon={<ClaudeMark size={16} />}
+              title={
+                <>
+                  Read by Claude
+                  <span className="ml-2 inline-flex items-center gap-1 align-middle text-[11px] font-normal text-[#9a9ea8]">
+                    <OpenAIMark size={11} className="text-[#15171c]" /> or GPT-4o-mini
+                  </span>
+                </>
+              }
+              detail={isJob ? 'It’s a job. Pulled out of the text:' : 'Not a job — just chatter. Ignored.'}
               bad={!isJob}
             >
               {isJob && stage >= 2 && s.parsed && (
@@ -306,13 +325,30 @@ export default function MercurioWindow({ def }: { def: SphereDef }) {
             </Step>
             {isJob && (
               <>
-                <Step n={3} stage={stage} tone={tone} title="Google Calendar" detail={s.calendar.note} bad={!s.calendar.ok} />
-                <Step n={4} stage={stage} tone={tone} title="Rate floor" detail={s.rate.note} bad={!s.rate.ok} />
+                <Step
+                  n={3}
+                  stage={stage}
+                  tone={tone}
+                  icon={<GoogleMark size={15} />}
+                  title="Checked against Google Calendar"
+                  detail={s.calendar.note}
+                  bad={!s.calendar.ok}
+                />
+                <Step
+                  n={4}
+                  stage={stage}
+                  tone={tone}
+                  icon={<span className="text-[13px] font-semibold" style={{ color: tone }}>$</span>}
+                  title="Checked against your rate floor"
+                  detail={s.rate.note}
+                  bad={!s.rate.ok}
+                />
                 <Step
                   n={5}
                   stage={stage}
                   tone={tone}
-                  title={cleared ? (auto ? 'Reply sent' : 'Reply drafted') : 'Left in your inbox'}
+                  icon={<WhatsAppMark size={16} />}
+                  title={cleared ? (auto ? 'Reply sent to the group' : 'Reply drafted, not sent') : 'Left in your inbox'}
                   detail={
                     cleared
                       ? auto
@@ -325,7 +361,18 @@ export default function MercurioWindow({ def }: { def: SphereDef }) {
                 />
               </>
             )}
-            {!isJob && <Step n={3} stage={stage} tone={tone} title="Dropped" detail="Nothing to do." last dim />}
+            {!isJob && (
+              <Step
+                n={3}
+                stage={stage}
+                tone={tone}
+                icon={<span className="text-[14px] text-[#9a9ea8]">×</span>}
+                title="Nothing to do"
+                detail="No reply, nothing in your inbox."
+                last
+                dim
+              />
+            )}
           </ol>
 
           <div className="border-t border-[#eceae4] px-4 py-2 text-[11px] text-[#9a9ea8]">
@@ -337,10 +384,16 @@ export default function MercurioWindow({ def }: { def: SphereDef }) {
   );
 }
 
+/**
+ * One stage of the pipeline: a round badge carrying the service's mark
+ * (grey until the stage is reached, ringed while it's the current one),
+ * a title, and the detail that appears once it has run.
+ */
 function Step({
   n,
   stage,
   tone,
+  icon,
   title,
   detail,
   bad = false,
@@ -351,7 +404,8 @@ function Step({
   n: number;
   stage: number;
   tone: string;
-  title: string;
+  icon: React.ReactNode;
+  title: React.ReactNode;
   detail: string;
   bad?: boolean;
   last?: boolean;
@@ -360,30 +414,31 @@ function Step({
 }) {
   const reached = stage >= n;
   const active = stage === n;
-  const color = !reached ? '#cfcbc2' : bad ? '#b3543a' : tone;
+  const ring = !reached ? '#e6e3db' : bad ? '#b3543a' : tone;
   return (
-    <li className="relative pl-6 pb-4">
+    <li className="relative pl-10 pb-5">
       {!last && (
         <span
-          className="absolute left-[5px] top-4 h-full w-px"
-          style={{ background: stage > n ? color : '#e6e3db' }}
+          className="absolute left-[13px] top-8 h-[calc(100%-1.25rem)] w-px transition-colors"
+          style={{ background: stage > n ? ring : '#e6e3db' }}
         />
       )}
       <span
-        className="absolute left-0 top-[5px] h-[11px] w-[11px] rounded-full border-2 bg-white transition-colors"
-        style={{ borderColor: color, background: reached ? color : '#fff' }}
-      />
-      {active && !dim && (
-        <span
-          className="absolute left-0 top-[5px] h-[11px] w-[11px] animate-ping rounded-full opacity-40"
-          style={{ background: color, animationDuration: '1.4s' }}
-        />
-      )}
+        className="absolute left-0 top-0 grid h-7 w-7 place-items-center rounded-full border bg-white transition-all duration-300"
+        style={{
+          borderColor: ring,
+          opacity: reached ? 1 : 0.45,
+          filter: reached ? 'none' : 'grayscale(1)',
+          boxShadow: active && !dim ? `0 0 0 4px ${ring}26` : 'none',
+        }}
+      >
+        {icon}
+      </span>
       <div
-        className="text-[13.5px] font-medium transition-colors"
+        className="flex min-h-7 items-center text-[13.5px] font-medium transition-colors"
         style={{ color: reached ? (bad ? '#b3543a' : '#15171c') : '#b4b7bf' }}
       >
-        {title}
+        <span>{title}</span>
       </div>
       <AnimatePresence initial={false}>
         {reached && detail && (
