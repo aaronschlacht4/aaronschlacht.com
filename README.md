@@ -94,6 +94,10 @@ turn).
   window that swallows scroll is a trap; distance is a dial instead), idle
   camera drift added, and rendering paused while the canvas is off-screen or
   the tab hidden. The window carries the site's console.
+- **Mercurio** (mercurio.host) isn't 3D, so its window is a looping demo
+  of the product: a WhatsApp dispatch group on the left, the pipeline on the
+  right — message in, parsed by the model, calendar and rate-floor checks,
+  reply out (or left in the inbox). The auto-reply switch is live.
 - **Books** frames the existing `BookshelfScene`.
 
 Shared chrome lives in `src/projects/shared/`: `WindowFrame` (title bar,

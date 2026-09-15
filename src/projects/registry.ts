@@ -16,6 +16,7 @@ const generic: ProjectUI = {
 
 const PROJECT_UI: Record<string, ProjectUI> = {
   physica: { Window: lazy(() => import('./physica/PhysicaWindow')) },
+  mercurio: { Window: lazy(() => import('./mercurio/MercurioWindow')) },
   books: { Window: lazy(() => import('./books/BooksWindow')) },
 };
 

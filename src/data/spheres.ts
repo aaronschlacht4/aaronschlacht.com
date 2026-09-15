@@ -55,27 +55,33 @@ export const SPHERES: SphereDef[] = [
   {
     id: 'mercurio',
     label: 'Mercurio',
-    tagline: 'A forum app I built',
+    tagline: 'WhatsApp dispatch, on autopilot',
     route: '/mercurio',
     kind: 'mercury',
     color: '#e0a86b',
     tone: '#a8702f',
     orbit: { radius: 0.92, tilt: 0.2, yaw: 0.0, phase: 0.3 },
     blurb:
-      'A community forum I designed and built end to end — fast threads, a clean reading experience, and moderation that stays out of the way.',
-    link: { label: 'Visit Mercurio', href: '#' },
-    // TODO: real copy for all three sections.
+      'Mercurio watches a driver’s WhatsApp dispatch groups, reads every job posting with AI, checks the calendar for conflicts, and replies to claim the trips worth taking — while they keep driving.',
+    link: { label: 'mercurio.host', href: 'https://mercurio.host' },
     how: [
-      'Threads are stored as trees and rendered flat, so a long conversation still reads top to bottom without losing who replied to whom.',
-      'Posts stream in over a live connection; the page never reloads to show a new reply.',
+      'Black-car and chauffeur work gets handed out in WhatsApp groups: a dispatcher posts a trip, and the first driver to answer gets it. Mercurio scans a QR code once to join those groups as you, then reads every message that comes through and throws away the chatter.',
+      'Each job posting goes to a model — Claude, or GPT-4o-mini, or a free heuristic parser that runs locally — which pulls out the pickup, the drop-off, the time, the passengers and the pay, and works out an hourly rate. A message with a fee but no drop-off time is assumed to be an hour’s work.',
+      'The job is then checked against your Google Calendar, with a margin you set, and against a minimum $/hour and a service radius. Anything that clears gets a reply in your own voice: you answer a few questions the way you’d actually text a dispatcher, and Mercurio learns the style. Anything that doesn’t clear stays in your inbox for you to decide.',
+      'Auto-reply is a switch per group, and manual sending is the default. It answers in the dispatcher’s language — English, Italian, Spanish, Portuguese or French — and rewords each reply slightly, since sending identical text to hundreds of people is what WhatsApp’s spam detection looks for. A second mode watches groups for people asking about financing, messages them privately, and prequalifies them.',
     ],
     tools: [
-      { name: 'React', note: 'the client' },
-      { name: 'Node', note: 'the API and the live feed' },
-      { name: 'Postgres', note: 'threads, users, full-text search' },
+      { name: 'React', note: 'the app' },
+      { name: 'Supabase', note: 'accounts, groups, the job inbox' },
+      { name: 'WhatsApp Web session', note: 'reads the groups and sends the replies' },
+      { name: 'Google Calendar API', note: 'conflict checks, confirmed jobs added' },
+      { name: 'Claude · GPT-4o-mini', note: 'parse each posting into a job' },
+      { name: 'Heuristic parser', note: 'the free, local fallback' },
     ],
+    // TODO: first draft in your voice — edit freely.
     why: [
-      'I wanted a forum that felt as quick as a chat and read as well as a good long-form page, and nothing I used did both.',
+      'A driver I know was losing trips to whoever happened to be looking at their phone first. The work was there; the problem was attention. That is a problem software is good at.',
+      'The interesting part was not the model. It was everything around it: reading a live WhatsApp session without getting banned, deciding what counts as a conflict, sounding like the driver and not like a bot, and leaving the final say with the person whose name is on the reply.',
     ],
   },
   {
