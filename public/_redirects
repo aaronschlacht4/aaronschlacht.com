@@ -1,6 +1,0 @@
-# SPA fallback. /mercurio, /markets, /books and /physica are client-side
-# routes (pushState/popstate in App.tsx) with no file behind them, so a
-# visitor landing on one directly — or refreshing while there — would 404.
-# Serve index.html for anything that isn't a real static asset; the 200
-# keeps it a rewrite rather than a redirect, so the URL stays put.
-/*    /index.html   200

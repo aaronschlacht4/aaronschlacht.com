@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aaronschlachtcom",
+  "compatibility_date": "2026-09-11",
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./dist",
+    // /mercurio, /markets, /books, /physica are client-side routes: serve
+    // index.html for any path that isn't a real static asset.
+    "not_found_handling": "single-page-application"
+  }
+}
