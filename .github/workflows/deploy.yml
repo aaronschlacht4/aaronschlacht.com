@@ -34,8 +34,15 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version-file: .nvmrc # 22.12.0, the same pin used locally
+          node-version-file: .nvmrc # 22.12.0
           cache: npm
+
+      # Node 22.12 ships npm 10.9, and this dependency graph's lockfile can
+      # only be read by npm 11: 10.9 fails `npm ci` with "Missing:
+      # @emnapi/runtime from lock file" over entries npm 11 nests under
+      # @rolldown/binding-wasm32-wasi. Reproducible on any OS — it's the npm
+      # version, not the platform. Pin it to what writes the lockfile locally.
+      - run: npm i -g npm@11.6.2
 
       - run: npm ci
 
