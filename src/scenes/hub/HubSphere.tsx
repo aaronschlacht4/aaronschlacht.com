@@ -225,11 +225,14 @@ gl_Position.xy += uBCNdc * gl_Position.w;`,
 // the sphere and nothing is clipped.
 const BH_RES = 224; // texture size (px) — cheap: ~50K rays a frame
 const BH_STEPS = 320; // integration steps per ray; plenty at this size
-const BH_DIST = 54; // camera radius, in M — far enough that the lensed far side fits
-const BH_INCL = 12; // degrees above the disk
+const BH_DIST = 62; // camera radius, in M — far enough that the lensed far side fits
+const BH_INCL = 13; // degrees above the disk, at rest
+const BH_NOD = 9; // ± degrees: the view slowly nods, so the fold over the top opens and closes
+const BH_NOD_PERIOD = 14; // seconds
+const BH_CHURN = 3.2; // disk-time rate: the banding visibly streams at this size
 const BH_FOV = 50; // degrees
 const BH_DISK_OUT = 12; // M
-const BH_SPIN = 2.2; // azimuth drift, degrees per second
+const BH_SPIN = 7; // azimuth drift, degrees per second
 // Overall size in the hub, as a multiple of the base sphere radius. Much
 // larger than the solid spheres because most of it is thin disk — it anchors
 // the system and sits a long way back, so it needs the size to read at all.
@@ -238,7 +241,7 @@ const BH_SPIN = 2.2; // azimuth drift, degrees per second
 const DISK_SPAN = R * 5.6;
 // The sprite's edge-to-edge size: the disk fills about half the frame, so
 // the arc bent over the top has room and nothing hits the picture's edge.
-const BH_SPRITE = DISK_SPAN * 1.05;
+const BH_SPRITE = DISK_SPAN * 1.18;
 // Shrink factor that takes the docked emblem back to the standard radius R.
 const EMBLEM_SCALE = (R * 2) / DISK_SPAN;
 const BH_TAN_HALF = Math.tan((BH_FOV * Math.PI) / 360);
@@ -258,6 +261,7 @@ function BlackHole({ id, glow }: { id: string; glow: { value: number } }) {
   const dockRef = useRef<Group>(null);
   const docked = useRef(0);
   const azimuth = useRef(0);
+  const nod = useRef(0);
 
   const { target, scene, camera, material } = useMemo(() => {
     const target = new WebGLRenderTarget(BH_RES, BH_RES, {
@@ -287,10 +291,10 @@ function BlackHole({ id, glow }: { id: string; glow: { value: number } }) {
         uDiskIn: { value: ISCO },
         uDiskOut: { value: BH_DISK_OUT },
         uShowDisk: { value: 1 },
-        uShowStars: { value: 0 },
+        uShowStars: { value: 1 },
         uBeaming: { value: 1 },
         uTime: { value: 0 },
-        uExposure: { value: 0.55 },
+        uExposure: { value: 0.62 },
         uSteps: { value: BH_STEPS },
       },
       depthTest: false,
@@ -326,16 +330,18 @@ function BlackHole({ id, glow }: { id: string; glow: { value: number } }) {
     const paused = hovered === id && activeSection === null;
     if (!paused) {
       azimuth.current += delta * BH_SPIN;
-      material.uniforms.uTime.value += delta;
+      material.uniforms.uTime.value += delta * BH_CHURN;
+      nod.current += delta;
     }
     // Hovering brightens the disk rather than washing the object in gold
     // like the solid spheres; nothing lands on a black hole.
     // Kept low: the hub also blooms, and a small bright disk reads as a
     // white blob at physica's page exposure.
-    material.uniforms.uExposure.value = 0.55 + 0.3 * glow.value;
+    material.uniforms.uExposure.value = 0.62 + 0.3 * glow.value;
 
     // Camera on a ring round the hole, looking straight at it (physica's view()).
-    const inc = (BH_INCL * Math.PI) / 180;
+    const inc =
+      ((BH_INCL + BH_NOD * Math.sin((nod.current / BH_NOD_PERIOD) * Math.PI * 2)) * Math.PI) / 180;
     const az = (azimuth.current * Math.PI) / 180;
     const pos = material.uniforms.uCam.value as Vector3;
     pos.set(BH_DIST * Math.cos(inc) * Math.cos(az), BH_DIST * Math.sin(inc), BH_DIST * Math.cos(inc) * Math.sin(az));
