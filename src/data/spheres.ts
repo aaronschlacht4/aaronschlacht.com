@@ -111,26 +111,35 @@ export const SPHERES: SphereDef[] = [
   },
   {
     id: 'books',
-    label: 'Books',
-    tagline: 'What I’m reading & notes',
+    label: 'The Modern Salon',
+    tagline: 'A library you read together',
+    // Kept at /books so links to the old reading-log page still land here.
     route: '/books',
     kind: 'paper',
     color: '#d8cfb8',
-    tone: '#8a7b57',
+    tone: '#8a5a2b',
     orbit: { radius: 1.66, tilt: 0.26, yaw: -0.6, phase: 4.3 },
     blurb:
-      'A running log of what I’m reading — notes, favorite passages, and the occasional half-formed review.',
-    link: { label: 'See the shelf', href: '#' },
-    // TODO: real copy for all three sections.
+      'The Modern Salon is a reading library where the margins are shared. Books sit on a 3D shelf in their real covers; open one, highlight a passage, and the discussion, a thinker’s commentary and an AI that has read the page are all pinned to that line.',
+    link: { label: 'myforum.space', href: 'https://myforum.space' },
     how: [
-      'Every book I finish gets a short note the same week, a mark out of five, and a spine on the shelf above. Hover a spine to pull it out.',
+      'Your library is a 3D shelf. Every book is the same model wearing its own cover: one image of the jacket laid out flat — back, spine, front — wrapped onto it, with the spine as thick as the book’s page count says. Getting flat art to sit right on a curved spine took a custom shader: the spine’s slice of the image is handed out by where each point lands on screen, not by distance round the curve, and the GPU’s blur is worked out from the remap’s own slope so the seams don’t bleed.',
+      'Take a book down and it opens in a PDF reader. Select a passage and you can highlight it and say something about it. Each comment is pinned to the sheet its quote is actually on, so the discussion sits next to the words it’s about, with nested replies and up and down votes. Annotations are public: anyone can read them without an account.',
+      'You can follow a book with a VIP in the margins — a real thinker’s commentary, taken word for word from their lectures and essays, matched to the passages they talk about and linked back to the exact moment in the source. They show with a crown, and they’re commentary, not people you can follow. A script pulls the transcript, uses Claude to find the moments, and throws out any excerpt that doesn’t match the transcript word for word.',
+      'Around that: reader profiles, following, a feed, search-and-collect into your own shelf, reading progress, and a chat panel where you can ask Claude about the passage in front of you.',
     ],
     tools: [
-      { name: 'three.js', note: 'the shelf' },
-      { name: 'A text file', note: 'the notes, honestly' },
+      { name: 'Next.js · React', note: 'the app, on Cloudflare Workers' },
+      { name: 'three.js · react-three-fiber', note: 'the shelf, the books, the cover shader' },
+      { name: 'react-pdf', note: 'the reader, selection and highlights' },
+      { name: 'Supabase', note: 'accounts, books, annotations, votes; row-level security keeps them public to read' },
+      { name: 'Claude', note: 'the reading chat, and finding VIP moments in transcripts' },
+      { name: 'yt-dlp', note: 'lecture transcripts for VIP commentary' },
     ],
+    // TODO: first draft in your voice — edit freely.
     why: [
-      'I forget what I thought about a book within a month unless I write it down. This is the writing-down.',
+      'The best part of reading something hard is talking about it with someone who has just read the same page. Book clubs do that once a month, about a whole book. I wanted it at the level of the sentence, whenever you get there.',
+      'And I wanted the books to feel like books. A grid of thumbnails doesn’t make you want to pick anything up; a shelf does. Most of the time went into making one 3D model wear any cover without stretching it, which turned out to be a lot more about texture sampling than about 3D.',
     ],
   },
   {

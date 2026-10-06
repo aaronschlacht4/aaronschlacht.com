@@ -98,7 +98,16 @@ turn).
   of the product: a WhatsApp dispatch group on the left, the pipeline on the
   right — message in, parsed by the model, calendar and rate-floor checks,
   reply out (or left in the inbox). The auto-reply switch is live.
-- **Books** frames the existing `BookshelfScene`.
+- **The Modern Salon** (myforum.space, sphere id `books`, route `/books`)
+  is a looping demo with a real three.js half: a shelf of the app's own
+  books in their real cover art (`public/salon/`), one of which comes down,
+  opens, and has a passage highlighted, while the margin beside it fills
+  with the discussion pinned to that passage, a VIP's note and Claude's
+  answer. Drag turns the shelf, clicking a book opens it, and the VIP switch
+  is live. The books are built in code (`SalonStage.tsx`), not loaded — the
+  app's glTF is 20MB. The VIP notes are the real excerpts the app ingested;
+  the readers and the AI answers are written for the demo
+  (`scenarios.ts`).
 
 Shared chrome lives in `src/projects/shared/`: `WindowFrame` (title bar,
 picture, console strip) and `Dial`/`Toggle` (the gauge styling is `.gauge`
