@@ -3,7 +3,9 @@ import { useFrame } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
 import { useScene } from '../../state/useScene';
 import {
+  AdditiveBlending,
   AnimationMixer,
+  CanvasTexture,
   Color,
   DoubleSide,
   type Material,
@@ -16,6 +18,8 @@ import {
   Matrix3,
   Matrix4,
   Quaternion,
+  SpriteMaterial,
+  SRGBColorSpace,
   Group,
 } from 'three';
 import type { SphereDef } from '../../data/spheres';
@@ -234,15 +238,43 @@ const BH_ELEVATION = 0.58; // rad: open enough that the disk reads as a disc, no
 const BH_SPIN = 0.22; // rad/s about the disk's own axis, on top of the file's animation
 const BH_EMISSIVE = 1.25; // disk brightness; just over 1 so bloom lifts the inner rim without smearing the rest
 const BH_TINT = '#ffb86a'; // amber: the disc texture is grey on its own
+const BH_HALO = 0.16; // halo opacity at rest; rises on hover
 const _bhUp = new Vector3(0, 1, 0);
 const _bhNormal = new Vector3();
 const _bhQuat = new Quaternion();
+
+/**
+ * A soft warm halo, drawn once to a canvas: bright and peach at the centre,
+ * falling off quickly so it's gone well inside the texture's edge. Added to
+ * the scene at low opacity it reads as light from the disk catching the
+ * dark around it, not as a shape of its own.
+ */
+function makeGlowTexture(): CanvasTexture {
+  const n = 256;
+  const cv = document.createElement('canvas');
+  cv.width = n;
+  cv.height = n;
+  const ctx = cv.getContext('2d')!;
+  const g = ctx.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+  g.addColorStop(0.0, 'rgba(255,214,170,1)');
+  g.addColorStop(0.3, 'rgba(255,190,130,0.5)');
+  g.addColorStop(0.6, 'rgba(255,170,110,0.12)');
+  g.addColorStop(1.0, 'rgba(255,160,100,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, n, n);
+  const tex = new CanvasTexture(cv);
+  tex.colorSpace = SRGBColorSpace;
+  return tex;
+}
 
 function BlackHole({ id, glow }: { id: string; glow: { value: number } }) {
   const { scene, animations } = useGLTF(MODEL_URL.blackhole);
   const dockRef = useRef<Group>(null);
   const spinRef = useRef<Group>(null);
   const docked = useRef(0);
+
+  const haloRef = useRef<SpriteMaterial>(null);
+  const halo = useMemo(makeGlowTexture, []);
 
   const { obj, mixer, diskMats } = useMemo(() => {
     const m = scene.clone(true);
@@ -327,6 +359,7 @@ function BlackHole({ id, glow }: { id: string; glow: { value: number } }) {
     // Hovering brightens the disk rather than washing the object in gold
     // like the solid spheres; nothing lands on a black hole.
     for (const mat of diskMats) mat.emissiveIntensity = BH_EMISSIVE * (1 + 0.6 * glow.value);
+    if (haloRef.current) haloRef.current.opacity = BH_HALO * (1 + 0.7 * glow.value);
 
     const paused = hovered === id && activeSection === null;
     if (paused) return;
@@ -335,9 +368,25 @@ function BlackHole({ id, glow }: { id: string; glow: { value: number } }) {
   });
 
   return (
-    <group ref={dockRef} rotation={[BH_ELEVATION, 0, 0]}>
-      <group ref={spinRef}>
-        <primitive object={obj} />
+    <group ref={dockRef}>
+      {/* Halo: a quiet warm wash behind the disk, added to the scene. The
+          shadow sphere writes depth, so it's cut out of the middle and the
+          glow sits round the hole rather than over it. */}
+      <sprite scale={[DISK_SPAN * 1.3, DISK_SPAN * 1.3, 1]} renderOrder={-1}>
+        <spriteMaterial
+          ref={haloRef}
+          map={halo}
+          blending={AdditiveBlending}
+          transparent
+          opacity={BH_HALO}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </sprite>
+      <group rotation={[BH_ELEVATION, 0, 0]}>
+        <group ref={spinRef}>
+          <primitive object={obj} />
+        </group>
       </group>
     </group>
   );
