@@ -238,7 +238,7 @@ const BH_ELEVATION = 0.58; // rad: open enough that the disk reads as a disc, no
 const BH_SPIN = 0.22; // rad/s about the disk's own axis, on top of the file's animation
 const BH_EMISSIVE = 1.25; // disk brightness; just over 1 so bloom lifts the inner rim without smearing the rest
 const BH_TINT = '#ffb86a'; // amber: the disc texture is grey on its own
-const BH_HALO = 0.16; // halo opacity at rest; rises on hover
+const BH_HALO = 0.08; // halo opacity at rest; rises on hover
 const _bhUp = new Vector3(0, 1, 0);
 const _bhNormal = new Vector3();
 const _bhQuat = new Quaternion();
@@ -372,7 +372,7 @@ function BlackHole({ id, glow }: { id: string; glow: { value: number } }) {
       {/* Halo: a quiet warm wash behind the disk, added to the scene. The
           shadow sphere writes depth, so it's cut out of the middle and the
           glow sits round the hole rather than over it. */}
-      <sprite scale={[DISK_SPAN * 1.3, DISK_SPAN * 1.3, 1]} renderOrder={-1}>
+      <sprite scale={[DISK_SPAN * 1.15, DISK_SPAN * 1.15, 1]} renderOrder={-1}>
         <spriteMaterial
           ref={haloRef}
           map={halo}
