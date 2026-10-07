@@ -165,7 +165,15 @@ through to the DOM controls beneath. R3F sets `pointer-events: auto` on its own
 inner wrapper, so that has to be set on the `<Canvas>` **and** its parent —
 setting only the parent does nothing.
 
-## Textures — credit
+## Models & textures — credit
+
+The hub's black hole is **"Black Hole" by Sebastian Sosnowski**
+(sketchfab.com/3d-models/black-hole-cfd16738ad2c402b9dc8e38a9c05c8d4),
+CC BY 4.0, at `public/models/black_hole.glb`. HubSphere uses its shadow
+sphere and the two emissive ring discs; the stray moon, the dark shell and
+the polar jets are hidden (`BH_HIDE`, `JET_VISIBLE`). The site credits it in
+the footer, as the licence asks.
+
 
 Earth maps in `public/textures/` (`earth_color`, `earth_normal`,
 `earth_specular`, `earth_night`, `earth_clouds`, all `.webp`) are derived from

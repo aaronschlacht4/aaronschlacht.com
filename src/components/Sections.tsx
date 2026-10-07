@@ -164,7 +164,18 @@ export default function Sections() {
       </SectionFrame>
 
       <footer className="border-t border-white/5 py-10 text-center text-xs text-ink-dim">
-        <p>Built with three.js · NASA Blue Marble textures (public domain)</p>
+        <p>
+          Built with three.js · NASA Blue Marble textures (public domain) ·{' '}
+          <a
+            href="https://sketchfab.com/3d-models/black-hole-cfd16738ad2c402b9dc8e38a9c05c8d4"
+            target="_blank"
+            rel="noreferrer"
+            className="underline decoration-white/20 underline-offset-2 hover:text-ink"
+          >
+            Black hole model
+          </a>{' '}
+          by Sebastian Sosnowski (CC BY 4.0)
+        </p>
         <p className="mt-1 opacity-60">© Aaron Schlacht</p>
       </footer>
     </>

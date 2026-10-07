@@ -3,30 +3,23 @@ import { useFrame } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
 import { useScene } from '../../state/useScene';
 import {
+  AnimationMixer,
   Color,
-  GLSL3,
-  LinearFilter,
+  DoubleSide,
   type Material,
-  Mesh,
+  type Mesh,
   MeshPhysicalMaterial,
+  type MeshStandardMaterial,
   Box3,
   Vector3,
   Vector2,
   Matrix3,
   Matrix4,
-  OrthographicCamera,
-  PlaneGeometry,
   Quaternion,
-  RawShaderMaterial,
-  Scene,
-  SRGBColorSpace,
-  WebGLRenderTarget,
   Group,
 } from 'three';
 import type { SphereDef } from '../../data/spheres';
 import { easeInOut } from '../../lib/geo';
-import { FRAGMENT_SOURCE } from '../../projects/physica/shader';
-import { ISCO, shadowAngle } from '../../projects/physica/renderer';
 
 /** A sphere's live billboard-correction uniforms (see addBillboardCorrection),
  * recomputed every frame in HubSphere from the group's actual world position. */
@@ -53,6 +46,7 @@ const MODEL_URL: Record<string, string> = {
   mercury: '/models/mercury_mr.glb',
   crystal: '/models/pool_ball_mr.glb', // the eight ball
   paper: '/models/crumpled_paper.glb',
+  blackhole: '/models/black_hole.glb',
 };
 
 /**
@@ -215,108 +209,106 @@ gl_Position.xy += uBCNdc * gl_Position.w;`,
 }
 
 // ── The black hole ──────────────────────────────────────────────────────
-// Not a model. The physica.fyi ray tracer (src/projects/physica/shader.ts)
-// renders the hole to a small offscreen texture every frame — the lensed
-// disk, the photon ring, the Doppler-bright side — and that picture is put
-// in the hub as an additive sprite: its black adds nothing, so only the
-// light shows, over a plain black sphere that stands in for the shadow and
-// occludes what's behind it. The disk's near side crosses in front of the
-// shadow in the picture itself, so the sprite sits a little in front of
-// the sphere and nothing is clipped.
-const BH_RES = 224; // texture size (px) — cheap: ~50K rays a frame
-const BH_STEPS = 320; // integration steps per ray; plenty at this size
-const BH_DIST = 62; // camera radius, in M — far enough that the lensed far side fits
-const BH_INCL = 13; // degrees above the disk, at rest
-const BH_NOD = 9; // ± degrees: the view slowly nods, so the fold over the top opens and closes
-const BH_NOD_PERIOD = 14; // seconds
-const BH_CHURN = 3.2; // disk-time rate: the banding visibly streams at this size
-const BH_FOV = 50; // degrees
-const BH_DISK_OUT = 12; // M
-const BH_SPIN = 7; // azimuth drift, degrees per second
+// "Black Hole" by Sebastian Sosnowski (sketchfab.com/SebastianSosnowski),
+// CC BY 4.0 — public/models/black_hole.glb. A black sphere for the shadow,
+// two emissive ring discs for the accretion disk, a dark transmissive
+// shell, a stray moon, and two polar jets. The disk and shadow are used; the
+// moon is hidden (nothing orbits this), and so are the jets — at 100+ units
+// against a 29-unit disk they'd set the object's size and put the disk at
+// a quarter of its proper scale. Flip JET_VISIBLE to show them.
+const BH_HIDE = new Set(['Sphere Tethys', 'Saturn Clouds']);
+const BH_JETS = new Set(['ConeUP', 'ConeDown']);
+const JET_VISIBLE = false;
+const BH_RING_NODE = 'Saturn Rings';
 // Overall size in the hub, as a multiple of the base sphere radius. Much
 // larger than the solid spheres because most of it is thin disk — it anchors
 // the system and sits a long way back, so it needs the size to read at all.
 // Capped by clearance: the outer disk stays clear of the nearest orbit at
 // closest approach (see the anchor note in spheres.ts).
 const DISK_SPAN = R * 5.6;
-// The sprite's edge-to-edge size: the disk fills about half the frame, so
-// the arc bent over the top has room and nothing hits the picture's edge.
-const BH_SPRITE = DISK_SPAN * 1.18;
 // Shrink factor that takes the docked emblem back to the standard radius R.
 const EMBLEM_SCALE = (R * 2) / DISK_SPAN;
-const BH_TAN_HALF = Math.tan((BH_FOV * Math.PI) / 360);
-// Apparent radius of the shadow in the picture, as a fraction of its
-// half-height — so the black sphere is exactly the size of the hole.
-const BH_SHADOW_FRAC = Math.tan(shadowAngle(BH_DIST)) / BH_TAN_HALF;
-
-const BH_VERTEX = `
-in vec3 position;
-out vec2 vUv;
-void main() {
-  vUv = position.xy * 0.5 + 0.5;
-  gl_Position = vec4(position.xy, 0.0, 1.0);
-}`;
+const BH_ELEVATION = 0.3; // rad: off edge-on enough to open the disk into an ellipse
+const BH_SPIN = 0.22; // rad/s about the disk's own axis, on top of the file's animation
+const BH_EMISSIVE = 1.5; // disk brightness; above 1 so the hub's bloom catches the rim
+const BH_TINT = '#ffb86a'; // amber: the disc texture is grey on its own
+const _bhUp = new Vector3(0, 1, 0);
+const _bhNormal = new Vector3();
+const _bhQuat = new Quaternion();
 
 function BlackHole({ id, glow }: { id: string; glow: { value: number } }) {
+  const { scene, animations } = useGLTF(MODEL_URL.blackhole);
   const dockRef = useRef<Group>(null);
+  const spinRef = useRef<Group>(null);
   const docked = useRef(0);
-  const azimuth = useRef(0);
-  const nod = useRef(0);
 
-  const { target, scene, camera, material } = useMemo(() => {
-    const target = new WebGLRenderTarget(BH_RES, BH_RES, {
-      minFilter: LinearFilter,
-      magFilter: LinearFilter,
-      depthBuffer: false,
-      // Physica's shader writes gamma-encoded colour. Say so, or three
-      // gamma-encodes it a second time on output and the amber disk comes
-      // out as washed grey-white.
-      colorSpace: SRGBColorSpace,
+  const { obj, mixer, diskMats } = useMemo(() => {
+    const m = scene.clone(true);
+    const diskMats: MeshStandardMaterial[] = [];
+    m.traverse((o) => {
+      if (BH_HIDE.has(o.name) || (!JET_VISIBLE && BH_JETS.has(o.name))) o.visible = false;
+      const mesh = o as Mesh;
+      if (!mesh.isMesh) return;
+      const mat = (mesh.material as MeshStandardMaterial).clone();
+      mesh.material = mat;
+      if (mat.emissiveMap) {
+        // The disk: emissive-only, so it reads the same from any side and
+        // the hub's lights never flatten it. Its black shadow sphere is
+        // untouched — it's already unlit black.
+        mat.emissiveIntensity = BH_EMISSIVE;
+        // The file's disc texture is a cool grey; tint the emission amber so
+        // it sits with the warm hover accent and physica's own disk.
+        mat.emissive.set(BH_TINT);
+        mat.toneMapped = false;
+        mat.depthWrite = false;
+        mat.transparent = true;
+        mat.side = DoubleSide;
+        diskMats.push(mat);
+      }
     });
-    const material = new RawShaderMaterial({
-      glslVersion: GLSL3,
-      vertexShader: BH_VERTEX,
-      // Physica writes an opaque picture; here its black has to be see-
-      // through, so alpha is the brightest channel — black is clear, the disk
-      // is solid, and it composites normally over the stars behind it.
-      fragmentShader: FRAGMENT_SOURCE.replace('#version 300 es', '').replace(
-        'fragColor = vec4(pow(color, vec3(1.0 / 2.2)), 1.0);',
-        'vec3 _c = pow(color, vec3(1.0 / 2.2)); fragColor = vec4(_c, max(_c.r, max(_c.g, _c.b)));',
-      ),
-      uniforms: {
-        uRes: { value: new Vector2(BH_RES, BH_RES) },
-        uCam: { value: new Vector3() },
-        uBasis: { value: new Matrix3() },
-        uTanHalfFov: { value: BH_TAN_HALF },
-        uDiskIn: { value: ISCO },
-        uDiskOut: { value: BH_DISK_OUT },
-        uShowDisk: { value: 1 },
-        uShowStars: { value: 1 },
-        uBeaming: { value: 1 },
-        uTime: { value: 0 },
-        uExposure: { value: 0.62 },
-        uSteps: { value: BH_STEPS },
-      },
-      depthTest: false,
-      depthWrite: false,
+    // Lay the disk flat: measure the ring node's world normal (its verts sit
+    // in local XY, so the normal is local Z), then rotate the whole thing so
+    // that normal is +Y. Done on the model's own frame, so whatever the
+    // exporter baked in — the Sketchfab root carries a tilt and an offset —
+    // comes out level.
+    m.updateWorldMatrix(true, true);
+    const ring = m.getObjectByName(BH_RING_NODE);
+    if (ring) {
+      _bhNormal.set(0, 0, 1).transformDirection(ring.matrixWorld);
+      m.quaternion.premultiply(_bhQuat.setFromUnitVectors(_bhNormal, _bhUp));
+    }
+    // Fit on what actually draws, and centre on the shadow sphere rather
+    // than the box, so the hole sits at the middle of its own disk.
+    m.updateWorldMatrix(true, true);
+    const box = new Box3();
+    let centre: Vector3 | null = null;
+    // traverseVisible, not traverse: the jets are hidden at their parent
+    // node, and the meshes under it still say visible.
+    m.traverseVisible((o) => {
+      const mesh = o as Mesh;
+      if (!mesh.isMesh) return;
+      box.expandByObject(mesh);
+      if (mesh.name.startsWith('Saturn_')) centre = new Box3().expandByObject(mesh).getCenter(new Vector3());
     });
-    const scene = new Scene();
-    scene.add(new Mesh(new PlaneGeometry(2, 2), material));
-    const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    return { target, scene, camera, material };
-  }, []);
+    const size = box.getSize(new Vector3());
+    const sc = DISK_SPAN / (Math.max(size.x, size.y, size.z) || 1);
+    const c = centre ?? box.getCenter(new Vector3());
+    m.scale.setScalar(sc);
+    m.position.set(-c.x * sc, -c.y * sc, -c.z * sc);
+    const mixer = new AnimationMixer(m);
+    for (const clip of animations) mixer.clipAction(clip).play();
+    return { obj: m, mixer, diskMats };
+  }, [scene, animations]);
 
   useEffect(
     () => () => {
-      target.dispose();
-      material.dispose();
+      mixer.stopAllAction();
     },
-    [target, material],
+    [mixer],
   );
 
-  useFrame(({ gl }, delta) => {
+  useFrame((_, delta) => {
     const { hovered, activeSection } = useScene.getState();
-
     // Ease down to emblem size while this section is open. Matched to the
     // damping rate OrbitHub moves the emblem to the corner with, so the
     // shrink and the flight land together.
@@ -326,67 +318,24 @@ function BlackHole({ id, glow }: { id: string; glow: { value: number } }) {
       const t = easeInOut(docked.current);
       dockRef.current.scale.setScalar(1 + (EMBLEM_SCALE - 1) * t);
     }
-
-    const paused = hovered === id && activeSection === null;
-    if (!paused) {
-      azimuth.current += delta * BH_SPIN;
-      material.uniforms.uTime.value += delta * BH_CHURN;
-      nod.current += delta;
-    }
     // Hovering brightens the disk rather than washing the object in gold
     // like the solid spheres; nothing lands on a black hole.
-    // Kept low: the hub also blooms, and a small bright disk reads as a
-    // white blob at physica's page exposure.
-    material.uniforms.uExposure.value = 0.62 + 0.3 * glow.value;
+    for (const mat of diskMats) mat.emissiveIntensity = BH_EMISSIVE * (1 + 0.6 * glow.value);
 
-    // Camera on a ring round the hole, looking straight at it (physica's view()).
-    const inc =
-      ((BH_INCL + BH_NOD * Math.sin((nod.current / BH_NOD_PERIOD) * Math.PI * 2)) * Math.PI) / 180;
-    const az = (azimuth.current * Math.PI) / 180;
-    const pos = material.uniforms.uCam.value as Vector3;
-    pos.set(BH_DIST * Math.cos(inc) * Math.cos(az), BH_DIST * Math.sin(inc), BH_DIST * Math.cos(inc) * Math.sin(az));
-    _bhFwd.copy(pos).negate().normalize();
-    _bhRight.crossVectors(_bhFwd, _bhUp).normalize();
-    _bhUp2.crossVectors(_bhRight, _bhFwd);
-    (material.uniforms.uBasis.value as Matrix3).set(
-      _bhRight.x, _bhUp2.x, _bhFwd.x,
-      _bhRight.y, _bhUp2.y, _bhFwd.y,
-      _bhRight.z, _bhUp2.z, _bhFwd.z,
-    );
-
-    const prev = gl.getRenderTarget();
-    gl.setRenderTarget(target);
-    gl.render(scene, camera);
-    gl.setRenderTarget(prev);
+    const paused = hovered === id && activeSection === null;
+    if (paused) return;
+    mixer.update(delta);
+    if (spinRef.current) spinRef.current.rotation.y += delta * BH_SPIN;
   });
 
-  const shadowR = (BH_SPRITE / 2) * BH_SHADOW_FRAC;
   return (
-    <group ref={dockRef}>
-      {/* The shadow: unlit black, writes depth, so the stars and Earth
-          behind the hole are swallowed exactly where the picture is black. */}
-      <mesh>
-        <sphereGeometry args={[shadowR, 48, 48]} />
-        <meshBasicMaterial color="#000000" />
-      </mesh>
-      {/* The light: the ray-traced picture, added on top. Set a touch toward
-          the camera so the sphere never clips the disk's near side. */}
-      <sprite scale={[BH_SPRITE, BH_SPRITE, 1]} position={[0, 0, shadowR * 1.15]}>
-        <spriteMaterial
-          map={target.texture}
-          transparent
-          depthWrite={false}
-          toneMapped={false}
-        />
-      </sprite>
+    <group ref={dockRef} rotation={[BH_ELEVATION, 0, 0]}>
+      <group ref={spinRef}>
+        <primitive object={obj} />
+      </group>
     </group>
   );
 }
-
-const _bhUp = new Vector3(0, 1, 0);
-const _bhFwd = new Vector3();
-const _bhRight = new Vector3();
-const _bhUp2 = new Vector3();
 
 export default function HubSphere({
   def,
@@ -524,3 +473,4 @@ export default function HubSphere({
 useGLTF.preload('/models/mercury_mr.glb');
 useGLTF.preload('/models/pool_ball_mr.glb');
 useGLTF.preload('/models/crumpled_paper.glb');
+useGLTF.preload('/models/black_hole.glb');
