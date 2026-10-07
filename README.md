@@ -99,15 +99,24 @@ turn).
   right — message in, parsed by the model, calendar and rate-floor checks,
   reply out (or left in the inbox). The auto-reply switch is live.
 - **The Modern Salon** (myforum.space, sphere id `books`, route `/books`)
-  is a looping demo with a real three.js half: a shelf of the app's own
-  books in their real cover art (`public/salon/`), one of which comes down,
-  opens, and has a passage highlighted, while the margin beside it fills
-  with the discussion pinned to that passage, a VIP's note and Claude's
-  answer. Drag turns the shelf, clicking a book opens it, and the VIP switch
-  is live. The books are built in code (`SalonStage.tsx`), not loaded — the
-  app's glTF is 20MB. The VIP notes are the real excerpts the app ingested;
-  the readers and the AI answers are written for the demo
-  (`scenarios.ts`).
+  is a looping demo built out of the app itself. The shelf is the app's own
+  `shelfv2.glb` compartment and `book2.glb` book (`public/salon/models/`,
+  24MB raw → 134KB: meshopt + webp for the shelf; the book shipped
+  texture-stripped, since every one of its textures is replaced at runtime)
+  wearing the app's cover material and spine-remap shader (`bookModel.ts`,
+  a verbatim port of the app's `lib/bookModel.ts`; `shelfLayout.ts` is its
+  `ShelfScene` layout, lighting and dock framing). A book comes down and
+  the app's reader opens over the canvas, rebuilt in DOM (`reader/`): the
+  bar, the reflowed sheets, the selection toolbar, the comments panel with
+  the draft-card flow, the VIP card and the Ask Claude card, all in the
+  app's own styles. Drag browses the shelf, clicking a book opens it, and
+  the VIP switch is live. The VIP notes are the real excerpts the app
+  ingested; the readers and the AI answers are written for the demo
+  (`scenarios.ts`). Model recipe:
+  `npx @gltf-transform/cli optimize IN.glb OUT.glb --compress meshopt
+  --texture-compress webp --texture-size 1024 --no-join --no-simplify
+  --no-flatten --no-palette --no-instance` (join + simplify merge the
+  book's stray debris meshes into its body and move its spine band).
 
 Shared chrome lives in `src/projects/shared/`: `WindowFrame` (title bar,
 picture, console strip) and `Dial`/`Toggle` (the gauge styling is `.gauge`

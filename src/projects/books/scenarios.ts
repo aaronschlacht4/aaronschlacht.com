@@ -28,11 +28,20 @@ export type Scenario = {
   author: string;
   /** the PDF page the passage is on */
   page: number;
-  /** what's set on the left and right pages of the open spread */
+  /** the app's extracted text for the page before, this page, and the page after */
   left: string[];
   right: string[];
+  after: string[];
   /** the highlighted passage: an exact substring of `right` */
   passage: string;
+  /** the chapter the reader's bar shows for this page */
+  chapter: string;
+  /** the source page's width / height, which sets the sheets' shape */
+  aspect: number;
+  /** average characters per source page, which sets the type size */
+  charsPerPage: number;
+  /** pages in the book */
+  total: number;
   /** the reader who highlighted it, and what they wrote */
   by: string;
   comment: string;
@@ -57,8 +66,17 @@ export const SCENARIOS: Scenario[] = [
       'We who lived in concentration camps can remember the men who walked through the huts comforting others, giving away their last piece of bread. They may have been few in number, but they offer sufficient proof that everything can be taken from a man but one thing: the last of the human freedoms—to choose one’s attitude in any given set of circumstances, to choose one’s own way.',
       'And there were always choices to make. Every day, every hour, offered the opportunity to make a decision, a decision which determined whether you would or would not submit to those powers which threatened to rob you of your very self, your inner freedom; which determined whether or not you would become the plaything of circumstance, renouncing freedom and dignity to become moulded into the form of the typical inmate.',
     ],
+    after: [
+      'deeper meaning to his life. It may remain brave, dignified and unselfish. Or in the bitter fight for selfpreservation he may forget his human dignity and become no more than an animal. Here lies the chance for a man either to make use of or to forgo the opportunities of attaining the moral values that a difficult situation may afford him. And this decides whether he is worthy of his sufferings or not.',
+      'Do not think that these considerations are unworldly and too far removed from real life. It is true that only a few people are capable of reaching such high moral standards. Of the prisoners only a few kept their full inner liberty and obtained those values which their suffering afforded, but even one such example is sufficient proof that man\'s inner strength may raise him above his outward fate. Such men are not only in concentration camps. Everywhere man is confronted with fate, with the chance of achieving something through his own suffering.',
+      'Take the fate of the sick—especially those who are incurable. I once read a letter written by a young invalid, in which he told a friend that he had just found out he would not live for long, that even an operation would be of no help. He wrote further that he remembered a film he had seen in which a man was portrayed who waited for death in a courageous and dignified way. The boy had thought it a great accomplishment to meet death so well. Now—he wrote—fate was offering him a similar chance.',
+    ],
     passage:
       'everything can be taken from a man but one thing: the last of the human freedoms—to choose one’s attitude in any given set of circumstances, to choose one’s own way.',
+    chapter: 'Part One',
+    aspect: 595 / 842,
+    charsPerPage: 3793,
+    total: 69,
     by: 'noa.k',
     comment: 'The whole book in one sentence. He isn’t saying suffering is fine — he’s saying the response is still yours.',
     replies: [
@@ -110,7 +128,14 @@ export const SCENARIOS: Scenario[] = [
       'excellent thing, but if we are to give everything its due, twice two makes five is sometimes a very charming thing too.',
       'And why are you so firmly, so triumphantly, convinced that only the normal and the positive—in other words, only what is conducive to welfare—is for the advantage of man? Is not reason in error as regards advantage? Does not man, perhaps, love something besides well-being? Perhaps he is just as fond of suffering? Perhaps suffering is just as great a benefit to him as well-being? Man is sometimes extraordinarily, passionately, in love with suffering, and that is a fact.',
     ],
+    after: [
+      'I know man prizes it and would not give it up for any satisfaction. Consciousness, for instance, is infinitely superior to twice two makes four. Once you have mathematical certainty there is nothing left to do or to understand. There will be nothing left but to bottle up your five senses and plunge into contemplation. While if you stick to consciousness, even though the same result is attained, you can at least flog yourself at times, and that will, at any rate, liven you up. Reactionary as it is, corporal punishment is better than nothing.',
+    ],
     passage: 'twice two makes five is sometimes a very charming thing too.',
+    chapter: 'Part I',
+    aspect: 396 / 612,
+    charsPerPage: 1277,
+    total: 187,
     by: 'margaux',
     comment: 'He knows 2 × 2 = 4. The point is he refuses to be a piano key someone else plays.',
     replies: [
@@ -155,7 +180,15 @@ export const SCENARIOS: Scenario[] = [
       'I am thy creature, and I will be even mild and docile to my natural lord and king, if thou wilt also perform thy part, the which thou owest me. Oh, Frankenstein, be not equitable to every other, and trample upon me alone, to whom thy justice, and even thy clemency and affection, is most due. Remember that I am thy creature: I ought to be thy Adam; but I am rather the fallen angel, whom thou drivest from joy for no misdeed. Every where I see bliss, from which I alone am irrevocably excluded. I was benevolent and good; misery made me a fiend. Make me happy, and I shall again be virtuous.”',
       '“Begone! I will not hear you. There can be no community between you and me; we are enemies. Begone, or let us try our strength in a fight, in which one must fall.”',
     ],
+    after: [
+      'favourable eye upon thy creature, who implores thy goodness and compassion. Believe me, Frankenstein: I was benevolent; my soul glowed with love and humanity: but am I not alone, miserably alone? You, my creator, abhor me; what hope can I gather from your fellow-creatures, who owe me nothing? they spurn and hate me. The desert mountains and dreary glaciers are my refuge. I have wandered here many days; the caves of ice, which I only do not fear, are a dwelling to me, and the only one which man does not grudge. These bleak skies I hail, for they are kinder to me than your fellow-beings. If the multitude of mankind knew of my existence, they would do as you do, and arm themselves for my destruction. Shall I not then hate them who abhor me? I will keep no terms with my enemies. I am miserable, and they shall share my wretchedness. Yet it is in your power to recompense me, and deliver them from an evil which it only remains for you to make so great, that not only you and your family, but thousands of others, shall be swallowed up in the whirlwinds of its rage. Let your compassion be moved, and do not disdain me. Listen to my tale: when you have heard that, abandon or commiserate me, as you shall judge that I deserve. But hear me.',
+      '“Thus I relieve thee, my creator,” he said, and placed his hated hands before my eyes, which I flung from me with violence; “thus I take from thee a sight which you abhor. Still thou canst listen to me, and grant me thy compassion. By the virtues that I once possessed, I demand this from you. Hear my tale; it is long and strange, and the temperature of this place is not fitting to your fine sensations; come to the hut upon the mountain.',
+    ],
     passage: 'I ought to be thy Adam; but I am rather the fallen angel, whom thou drivest from joy for no misdeed.',
+    chapter: 'Chapter VII',
+    aspect: 595 / 792,
+    charsPerPage: 2660,
+    total: 180,
     by: 'jun',
     comment: 'He’s been reading Paradise Lost (it comes up later), and he casts himself as both Adam and Satan in one breath.',
     replies: [

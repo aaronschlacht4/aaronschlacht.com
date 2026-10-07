@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { SphereDef } from '../../data/spheres';
 import WindowFrame from '../shared/WindowFrame';
@@ -17,16 +17,18 @@ const SalonStage = lazy(() => import('./SalonStage'));
  * pinned to that passage fills in and its votes tick up, a VIP's note
  * appears in the margin, and Claude answers a question about the passage.
  *
- * The left half is a real three.js scene — the app's own covers on built
- * books; drag to turn the shelf, click a book that has a story to open it.
- * The VIP switch is real too: readers can follow a book with or without a
- * thinker in the margin, and turning it off takes the note and its crown off
- * the page.
+ * The left half is the app itself, rebuilt: its 3D bookcase (the real shelf
+ * and book models, the real cover shader) and its reader (the real chrome,
+ * sheets, comments panel and Ask Claude card, in DOM over the canvas). Drag
+ * to browse the shelf, click a book that has a story to open it. The VIP
+ * switch is real too: readers can follow a book with or without a thinker in
+ * the margin, and turning it off takes the note out of the comments panel.
  */
 
 // Stages: 0 shelf · 1 taken down · 2 opened · 3 highlighted · 4 discussion ·
 // 5 VIP · 6 asked Claude · 7 closing
-const AT = { take: 900, open: 1800, highlight: 4300, discuss: 6000 };
+const AT = { take: 900, open: 2200, highlight: 4400, discuss: 6300 };
+const READY_FALLBACK_MS = 8000;
 const REPLY_MS = 750;
 const VIP_PAUSE = 1500;
 const ASK_PAUSE = 1700;
@@ -59,7 +61,16 @@ export default function BooksWindow({ def }: { def: SphereDef }) {
   const [shown, setShown] = useState(0); // replies revealed
   const [words, setWords] = useState(0); // answer words streamed
   const [reduced] = useState(prefersReducedMotion);
+  // The loop holds on the shelf until the models are in and every cover is on
+  // its book — or, if WebGL never delivers, until a fallback timer lets the
+  // margin play on its own.
+  const [ready, setReady] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const onReady = useCallback(() => setReady(true), []);
+  useEffect(() => {
+    const id = window.setTimeout(() => setReady(true), READY_FALLBACK_MS);
+    return () => clearTimeout(id);
+  }, []);
 
   const s = SCENARIOS[i];
   const thread = flatten(s.replies);
@@ -81,6 +92,7 @@ export default function BooksWindow({ def }: { def: SphereDef }) {
     setStage(0);
     setShown(0);
     setWords(0);
+    if (!ready) return;
 
     if (reduced) {
       // Everything at once; the scene snaps instead of travelling.
@@ -112,7 +124,7 @@ export default function BooksWindow({ def }: { def: SphereDef }) {
       cancelled = true;
       timers.forEach(clearTimeout);
     };
-  }, [i, run, reduced]);
+  }, [i, run, reduced, ready]);
 
   // Keep the newest step in view.
   useEffect(() => {
@@ -143,16 +155,19 @@ export default function BooksWindow({ def }: { def: SphereDef }) {
               reduced={reduced}
               pickable={PICKABLE}
               onPick={pick}
+              shown={shown}
+              words={words}
+              onReady={onReady}
             />
           </Suspense>
 
-          <div className="pointer-events-none absolute left-4 top-3.5 right-4">
+          <div className="pointer-events-none absolute bottom-3 left-4 z-20">
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={stage}
-                initial={reduced ? false : { opacity: 0, y: -4 }}
+                initial={reduced ? false : { opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
+                exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.25 }}
                 className="inline-flex items-baseline gap-2 rounded-full bg-[#140d04]/70 px-3 py-1.5 text-[12.5px] text-[#f3dcae] backdrop-blur-sm"
               >
@@ -164,11 +179,22 @@ export default function BooksWindow({ def }: { def: SphereDef }) {
             </AnimatePresence>
           </div>
 
-          <div className="pointer-events-none absolute bottom-3 left-4 right-4">
-            <span className="inline-block rounded-full bg-[#140d04]/65 px-3 py-1 text-[12px] text-[#f3dcae]/70 backdrop-blur-sm">
-              Drag to turn the shelf · click a book to open it
-            </span>
-          </div>
+          <AnimatePresence initial={false}>
+            {(stage === 0 || stage === 7) && (
+              <motion.div
+                key="hint"
+                initial={reduced ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="pointer-events-none absolute bottom-3 right-4 z-20"
+              >
+                <span className="inline-block rounded-full bg-[#140d04]/65 px-3 py-1 text-[12px] text-[#f3dcae]/70 backdrop-blur-sm">
+                  Drag to browse the shelf · click a book to open it
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* ── The margin ─────────────────────────────────────────────────── */}
@@ -190,7 +216,7 @@ export default function BooksWindow({ def }: { def: SphereDef }) {
               <Step n={1} stage={shownStage} tone={tone} icon={<ShelfGlyph color={tone} />} title="Taken off your shelf"
                 detail={`${book.pages} pages, so a ${book.pages < 150 ? 'thin' : book.pages > 400 ? 'thick' : 'medium'} spine — sized from the page count.`} />
               <Step n={2} stage={shownStage} tone={tone} icon={<OpenBookGlyph color={tone} />} title="Opened in the reader"
-                detail="The PDF, page by page, with the text selectable." />
+                detail="The book’s text, reflowed onto paper sheets — a spread at a time." />
               <Step n={3} stage={shownStage} tone={tone} icon={<HighlighterGlyph color={tone} />} title={`Highlighted by ${s.by}`}>
                 {shownStage >= 3 && (
                   <motion.blockquote
@@ -241,7 +267,7 @@ export default function BooksWindow({ def }: { def: SphereDef }) {
                       <CrownGlyph size={18} />
                       <span className="text-[12.5px] font-semibold text-[#241703]">{s.vip.speaker}</span>
                       <span className="rounded-full bg-[#c99a2e]/15 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-[#9a7420]">
-                        VIP
+                        {s.vip.source.kind === 'video' ? '▶ Lecture' : '✦ Essay'}
                       </span>
                     </div>
                     <p className="mt-1.5 text-[12.5px] leading-snug text-[#3d3121]">{s.vip.text}</p>
