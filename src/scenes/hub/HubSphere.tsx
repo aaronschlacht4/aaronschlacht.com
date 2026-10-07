@@ -216,7 +216,9 @@ gl_Position.xy += uBCNdc * gl_Position.w;`,
 // moon is hidden (nothing orbits this), and so are the jets — at 100+ units
 // against a 29-unit disk they'd set the object's size and put the disk at
 // a quarter of its proper scale. Flip JET_VISIBLE to show them.
-const BH_HIDE = new Set(['Sphere Tethys', 'Saturn Clouds']);
+// 'Saturn Rings Down' is a second copy of the disc for its underside; the
+// material is double-sided here, so the copy only z-fights the original.
+const BH_HIDE = new Set(['Sphere Tethys', 'Saturn Clouds', 'Saturn Rings Down']);
 const BH_JETS = new Set(['ConeUP', 'ConeDown']);
 const JET_VISIBLE = false;
 const BH_RING_NODE = 'Saturn Rings';
@@ -228,9 +230,9 @@ const BH_RING_NODE = 'Saturn Rings';
 const DISK_SPAN = R * 5.6;
 // Shrink factor that takes the docked emblem back to the standard radius R.
 const EMBLEM_SCALE = (R * 2) / DISK_SPAN;
-const BH_ELEVATION = 0.3; // rad: off edge-on enough to open the disk into an ellipse
+const BH_ELEVATION = 0.58; // rad: open enough that the disk reads as a disc, not a slit
 const BH_SPIN = 0.22; // rad/s about the disk's own axis, on top of the file's animation
-const BH_EMISSIVE = 1.5; // disk brightness; above 1 so the hub's bloom catches the rim
+const BH_EMISSIVE = 1.25; // disk brightness; just over 1 so bloom lifts the inner rim without smearing the rest
 const BH_TINT = '#ffb86a'; // amber: the disc texture is grey on its own
 const _bhUp = new Vector3(0, 1, 0);
 const _bhNormal = new Vector3();
@@ -259,6 +261,10 @@ function BlackHole({ id, glow }: { id: string; glow: { value: number } }) {
         // The file's disc texture is a cool grey; tint the emission amber so
         // it sits with the warm hover accent and physica's own disk.
         mat.emissive.set(BH_TINT);
+        // Seen at a slant, the disc's texture smears into bands without
+        // anisotropic filtering. 16 is the usual hardware ceiling.
+        if (mat.emissiveMap) mat.emissiveMap.anisotropy = 16;
+        if (mat.map) mat.map.anisotropy = 16;
         mat.toneMapped = false;
         mat.depthWrite = false;
         mat.transparent = true;
